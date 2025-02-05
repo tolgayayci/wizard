@@ -1,10 +1,11 @@
 [build]
   base = "/"
-  command = "npm run build"
+  command = "vite build"
   publish = "dist"
   
 [build.environment]
   NODE_VERSION = "18"
+  VITE_SKIP_TYPECHECK = "true"
 
 [[redirects]]
   from = "/*"

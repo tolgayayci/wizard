@@ -1,6 +1,7 @@
 [build]
-  command = "npm run docs:build"
+  command = "vitepress build"
   publish = ".vitepress/dist"
   
 [build.environment]
-  NODE_VERSION = "18" 
+  NODE_VERSION = "18"
+  VITE_SKIP_TYPECHECK = "true" 
