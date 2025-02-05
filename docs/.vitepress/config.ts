@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: "WIZARD",
   description: "Browser-based development environment for Arbitrum Stylus smart contracts",
+  base: '/',
   
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico' }],
@@ -25,8 +26,8 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Introduction', link: '/getting-started/introduction' },
-          { text: 'Quick Start', link: '/getting-started//quick-start' },
-          { text: 'Features', link: '/getting-started//features' }
+          { text: 'Quick Start', link: '/getting-started/quick-start' },
+          { text: 'Features', link: '/getting-started/features' }
         ]
       },
       {
@@ -59,6 +60,12 @@ export default defineConfig({
 
     search: {
       provider: 'local'
+    }
+  },
+
+  vite: {
+    ssr: {
+      noExternal: ['vitepress-plugin-nprogress']
     }
   }
 })
