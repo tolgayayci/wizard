@@ -1,0 +1,187 @@
+:root {
+  --vp-c-brand: #646cff;
+  --vp-c-brand-light: #747bff;
+  --vp-c-brand-lighter: #9499ff;
+  --vp-c-brand-dark: #535bf2;
+  --vp-c-brand-darker: #454ce1;
+
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #646cff, #535bf2);
+  
+  --vp-home-hero-image-background-image: linear-gradient(-45deg, #646cff60 30%, #535bf260);
+  --vp-home-hero-image-filter: blur(40px);
+}
+
+/* Add spacing between title and tagline */
+.VPHero .name,
+.VPHero .text {
+  padding-bottom: 12px !important;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --vp-home-hero-image-filter: blur(56px);
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --vp-home-hero-image-filter: blur(72px);
+  }
+}
+
+.dark {
+  --vp-c-brand: #747bff;
+  --vp-c-brand-light: #848cff;
+}
+
+/* Image theme switching */
+.dark-only {
+  display: none;
+}
+
+.light-only {
+  display: block;
+}
+
+.dark .dark-only {
+  display: block;
+}
+
+.dark .light-only {
+  display: none;
+}
+
+/* Image styling */
+.feature-image img {
+  border-radius: 8px;
+  margin: 16px 0;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  width: 100%;
+  max-width: 800px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin: 20px 0;
+}
+
+.feature-grid img {
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  width: 100%;
+}
+
+.feature-grid h4 {
+  margin-bottom: 10px;
+}
+
+/* Update image styling */
+.deployment-image, .interface-image {
+  max-width: 500px; /* reduced from 600px */
+  margin: 0 auto;
+  display: block;
+}
+
+.deployment-image img, .interface-image img {
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  width: 100%;
+}
+
+/* Add a new class for sharing images */
+.sharing-image {
+  max-width: 400px; /* smaller than deployment-image (500px) */
+  margin: 0 auto;
+  display: block;
+}
+
+.sharing-image img {
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  width: 100%;
+}
+
+/* Image zoom functionality */
+.zoomable {
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.zoom-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.zoom-overlay.active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zoom-overlay img {
+  max-width: 90%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* Full width intro image */
+.intro-image {
+  width: 100%;
+  margin: 2rem 0;
+}
+
+.intro-image img {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+/* Full-width comparison table */
+.comparison-table table {
+  display: table;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 12px;
+  line-height: 1.5;
+}
+
+.comparison-table tr:nth-child(2n) {
+  background-color: var(--vp-c-bg-soft);
+}
+
+/* Hero image styling */
+.VPHero .image-container {
+  width: 100% !important;
+  max-width: 1400px !important;
+  margin: 3rem auto;
+  padding: 0 1rem;
+}
+
+.VPHero .image-container img {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px -2px rgb(0 0 0 / 0.15);
+}
+
+/* Add hover effect */
+.VPHero .image-container:hover img {
+  transform: translateY(-4px);
+  transition: transform 0.3s ease;
+  box-shadow: 0 8px 12px -1px rgb(0 0 0 / 0.2);
+}
