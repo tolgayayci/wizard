@@ -1,38 +1,31 @@
 import { supabase } from './supabase';
 import { User } from '@/lib/types';
 
-const HELLO_WORLD_CODE = `use stylus_sdk::{
-    alloy_primitives::U256,
-    prelude::*,
-};
+const HELLO_WORLD_CODE = `extern crate alloc;
+
+use stylus_sdk::prelude::*;
 
 sol_storage! {
     #[entrypoint]
     pub struct HelloWorld {
-        string message;
+        string greeting;
     }
 }
 
 #[public]
 impl HelloWorld {
-    pub fn initialize(&mut self) {
-        self.message.set("Hello, World!".to_string());
-    }
-
-    pub fn get_message(&self) -> String {
-        self.message.get()
-    }
-
-    pub fn set_message(&mut self, new_message: String) {
-        self.message.set(new_message);
+    pub fn greet(&self) -> String {
+        "Hello, World!".into()
     }
 }`;
 
-const COUNTER_CODE = `use stylus_sdk::{
-    alloy_primitives::U256,
-    prelude::*,
-};
+const COUNTER_CODE = `extern crate alloc;
 
+/// Import items from the SDK. The prelude contains common traits and macros.
+use stylus_sdk::{alloy_primitives::U256, prelude::*};
+
+// Define some persistent storage using the Solidity ABI.
+// Counter will be the entrypoint.
 sol_storage! {
     #[entrypoint]
     pub struct Counter {
@@ -40,14 +33,27 @@ sol_storage! {
     }
 }
 
+/// Declare that Counter is a contract with the following external methods.
 #[public]
 impl Counter {
+    /// Gets the number from storage.
     pub fn number(&self) -> U256 {
         self.number.get()
     }
 
+    /// Sets a number in storage to a user-specified value.
     pub fn set_number(&mut self, new_number: U256) {
         self.number.set(new_number);
+    }
+
+    /// Sets a number in storage to a user-specified value.
+    pub fn mul_number(&mut self, new_number: U256) {
+        self.number.set(new_number * self.number.get());
+    }
+
+    /// Sets a number in storage to a user-specified value.
+    pub fn add_number(&mut self, new_number: U256) {
+        self.number.set(new_number + self.number.get());
     }
 
     pub fn increment(&mut self) {
