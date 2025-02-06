@@ -72,13 +72,19 @@ export function ProjectsPage() {
   const fetchProjects = async () => {
     try {
       setIsLoading(true);
-      // Fetch projects with deployment count using Postgres count subquery
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      // Only fetch projects owned by the current user
       const { data, error } = await supabase
         .from('projects')
         .select(`
           *,
           deployments:deployments(count)
-        `);
+        `)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -130,20 +136,14 @@ export function ProjectsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
 
-      // Get the template code
-      const templateCode = data.template?.code;
-      if (!templateCode) {
-        throw new Error("Template code is required");
-      }
-
-      // Create project with template code
+      // Create project with empty code if no template is provided
       const { data: project, error } = await supabase
         .from('projects')
         .insert({
           user_id: user.id,
           name: data.name,
-          description: data.description || data.template?.description || '',
-          code: templateCode, // Use template code directly
+          description: data.description || '',
+          code: data.template?.code || '', // Empty string if no template
           updated_at: new Date().toISOString(),
           last_activity_at: new Date().toISOString(),
         })

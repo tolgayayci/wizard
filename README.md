@@ -18,6 +18,7 @@
   <img src="public/images/main-light.png" alt="Wizard IDE Screenshot" width="80%" style="border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.1);" />
 </div>
 
+
 ## ✨ Features
 
 Wizard is a browser-based development environment that makes Arbitrum Stylus development simple and accessible.
