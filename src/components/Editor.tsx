@@ -6,7 +6,6 @@ import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { FileCode2 } from 'lucide-react';
-import { CompilationResult } from '@/lib/types';
 import { 
   initializeMonaco, 
   defineEditorTheme, 
@@ -43,15 +42,18 @@ export function Editor({
   const [showABIError, setShowABIError] = useState(false);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
-  const { theme } = useTheme();
+  const { theme, systemTheme } = useTheme();
   const { toast } = useToast();
+
+  // Get the effective theme (system or user preference)
+  const effectiveTheme = theme === 'system' ? systemTheme : theme;
 
   const handleEditorDidMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
     
     initializeMonaco(monaco);
-    defineEditorTheme(monaco, theme === 'dark');
+    defineEditorTheme(monaco, effectiveTheme === 'dark');
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, handleSave);
   };
@@ -121,12 +123,13 @@ export function Editor({
     }
   };
 
+  // Update theme when it changes
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
-      defineEditorTheme(monacoRef.current, theme === 'dark');
+      defineEditorTheme(monacoRef.current, effectiveTheme === 'dark');
       monacoRef.current.editor.setTheme('custom-theme');
     }
-  }, [theme]);
+  }, [effectiveTheme]);
 
   return (
     <div className="h-full flex flex-col bg-background border rounded-md overflow-hidden">
@@ -148,9 +151,9 @@ export function Editor({
           options={{
             ...defaultEditorOptions,
             readOnly: readOnly || isCompiling || isSharedView,
+            theme: 'custom-theme', // Set initial theme
           }}
           onMount={handleEditorDidMount}
-          theme="custom-theme"
           loading={
             <div className="absolute inset-0 flex items-center justify-center bg-muted/40">
               <div className="text-center">

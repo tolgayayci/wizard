@@ -147,7 +147,7 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ## 🤝 Getting Help
 
-- Join our [Telegram channel](https://t.me/arbitrum_stylus)
+- Join official [Telegram channel](https://t.me/arbitrum_stylus)
 - Create a GitHub issue
 - Read our [documentation](https://docs.thewizard.app)
 
