@@ -117,7 +117,7 @@ export function ABIExecuteDialog({
         .from('abi_calls')
         .insert({
           project_id: projectId,
-          contract_address: contractAddress,
+          contract_address: successResult.txHash,
           method_name: method.name,
           method_type: method.type,
           inputs,
@@ -144,7 +144,7 @@ export function ABIExecuteDialog({
         .from('abi_calls')
         .insert({
           project_id: projectId,
-          contract_address: contractAddress,
+          contract_address: errorResult.txHash,
           method_name: method.name,
           method_type: method.type,
           inputs,

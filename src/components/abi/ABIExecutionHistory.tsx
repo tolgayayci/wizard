@@ -211,7 +211,7 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(
-                      `https://testnet-explorer.superposition.so/address/${call.contract_address}`,
+                      `https://testnet-explorer.superposition.so/tx/${call.contract_address}`,
                       '_blank'
                     );
                   }}
@@ -245,7 +245,7 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                     <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                       <div className="flex items-center gap-2">
                         <Terminal className="h-4 w-4 text-muted-foreground" />
-                        <code className="font-mono text-sm">{selectedCall.contract_address}</code>
+                        <code className="font-mono text-sm">{selectedCall.contract_address || 'Read Only, No Transaction'}</code>
                       </div>
                       <div className="flex items-center gap-1">
                         <Button
