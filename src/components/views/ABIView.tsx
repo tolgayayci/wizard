@@ -124,7 +124,7 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
             <p className="text-xs text-muted-foreground">
               {isSharedView 
                 ? "View deployed contract methods and execution history"
-                : "Make calls to your deployed contract on Arbitrum Sepolia"
+                : "Make calls to your deployed contract on Superposition Testnet"
               }
             </p>
           </div>

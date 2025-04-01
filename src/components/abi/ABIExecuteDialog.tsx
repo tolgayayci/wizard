@@ -190,7 +190,7 @@ export function ABIExecuteDialog({
             <span>Contract:</span>
             <code className="font-mono text-xs">{contractAddress}</code>
             <a
-              href={`https://sepolia.arbiscan.io/address/${contractAddress}`}
+              href={`https://testnet-explorer.superposition.so/address/${contractAddress}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline inline-flex items-center gap-1"
@@ -296,7 +296,7 @@ export function ABIExecuteDialog({
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>Transaction Hash:</span>
                           <a
-                            href={`https://sepolia.arbiscan.io/tx/${result.txHash}`}
+                            href={`https://testnet-explorer.superposition.so/tx/${result.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-mono hover:underline flex items-center gap-1"

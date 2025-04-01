@@ -335,7 +335,7 @@ export function DeployDialog({
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      onClick={() => window.open(`https://sepolia.arbiscan.io/address/${deploymentResult.transaction.contract_address}`, '_blank')}
+                      onClick={() => window.open(`https://testnet-explorer.superposition.so/address/${deploymentResult.transaction.contract_address}`, '_blank')}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Button>
@@ -349,7 +349,7 @@ export function DeployDialog({
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      onClick={() => window.open(`https://sepolia.arbiscan.io/tx/${deploymentResult.transaction.deployment_tx_hash}`, '_blank')}
+                      onClick={() => window.open(`https://testnet-explorer.superposition.so/tx/${deploymentResult.transaction.deployment_tx_hash}`, '_blank')}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Button>

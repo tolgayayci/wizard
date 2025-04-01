@@ -7,7 +7,7 @@ export function ABIHeader() {
       <div>
         <h3 className="font-medium">Contract Interface</h3>
         <p className="text-xs text-muted-foreground">
-          Make calls to your deployed contract on Arbitrum Sepolia
+          Make calls to your deployed contract on Superposition Testnet
         </p>
       </div>
     </div>

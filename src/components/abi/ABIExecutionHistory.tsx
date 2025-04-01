@@ -211,7 +211,7 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(
-                      `https://sepolia.arbiscan.io/address/${call.contract_address}`,
+                      `https://testnet-explorer.superposition.so/address/${call.contract_address}`,
                       '_blank'
                     );
                   }}
@@ -262,7 +262,7 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                           className="h-8 w-8"
                           onClick={() => {
                             window.open(
-                              `https://sepolia.arbiscan.io/address/${selectedCall.contract_address}`,
+                              `https://testnet-explorer.superposition.so/address/${selectedCall.contract_address}`,
                               '_blank'
                             );
                           }}
