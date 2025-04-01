@@ -15,7 +15,7 @@ const FAQ_ITEMS = [
   },
   {
     question: "What is Wizard IDE?",
-    answer: "Wizard is a browser-based development environment specifically designed for Arbitrum Stylus. It provides a seamless experience for writing, testing, and deploying Rust smart contracts with features like real-time compilation, built-in ABI explorer, and one-click deployment to Arbitrum Sepolia - all without needing a wallet or managing gas fees.",
+    answer: "Wizard is a browser-based development environment specifically designed for Arbitrum Stylus. It provides a seamless experience for writing, testing, and deploying Rust smart contracts with features like real-time compilation, built-in ABI explorer, and one-click deployment to Superposition Testnet - all without needing a wallet or managing gas fees.",
     icon: Wand2,
   },
   {
@@ -30,7 +30,7 @@ const FAQ_ITEMS = [
   },
   {
     question: "How much does it cost to use Wizard?",
-    answer: "Wizard is completely free to use! All development costs including compilation, deployment, and contract interactions on Arbitrum Sepolia testnet are covered by our platform. You can develop and test your contracts without worrying about gas fees or wallet management.",
+    answer: "Wizard is completely free to use! All development costs including compilation, deployment, and contract interactions on Superposition Testnet are covered by our platform. You can develop and test your contracts without worrying about gas fees or wallet management.",
     icon: Coins,
   },
 ];

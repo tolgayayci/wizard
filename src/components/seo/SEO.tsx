@@ -33,6 +33,7 @@ const DEFAULT_KEYWORDS = [
   'Arbitrum Smart Contract Testing',
   'Stylus Development Environment',
   'Arbitrum Sepolia Testnet',
+  'Superposition Testnet',
   // Related terms
   'WebAssembly Smart Contracts',
   'WASM Blockchain',

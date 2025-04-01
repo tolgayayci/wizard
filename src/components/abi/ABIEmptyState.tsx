@@ -10,7 +10,7 @@ export function ABIEmptyState() {
         <h3 className="font-medium mb-3">No Contract Deployments</h3>
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">
-            Deploy your contract to Arbitrum Sepolia
+            Deploy your contract to Superposition Testnet
           </p>
           <p className="text-sm text-muted-foreground">
             to start interacting with its methods

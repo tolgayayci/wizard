@@ -39,7 +39,7 @@ export async function getSigner() {
             }]
           });
         } else {
-          throw new Error("Please switch to Arbitrum Sepolia network in your wallet.");
+          throw new Error("Please switch to Superposition Testnet network in your wallet.");
         }
       }
     }
@@ -63,7 +63,7 @@ export async function verifyContract(address: string): Promise<boolean> {
 
     const provider = getProvider();
     
-    // Verify we're on Arbitrum Sepolia
+    // Verify we're on Superposition Testnet
     const network = await provider.getNetwork();
     if (network.chainId !== BigInt(BLOCKCHAIN_CONFIG.arbitrumSepolia.chainId)) {
       throw new Error(`Wrong network. Please connect to ${BLOCKCHAIN_CONFIG.arbitrumSepolia.name}`);

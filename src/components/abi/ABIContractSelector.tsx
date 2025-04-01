@@ -95,7 +95,7 @@ export function ABIContractSelector({
                   <Info className="h-4 w-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Select a deployed contract address on Arbitrum Sepolia</p>
+                  <p>Select a deployed contract address on Superposition Testnet</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

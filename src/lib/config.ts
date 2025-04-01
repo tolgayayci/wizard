@@ -6,7 +6,7 @@ export const BLOCKCHAIN_CONFIG = {
   arbitrumSepolia: {
     rpc: import.meta.env.VITE_ARB_SEPOLIA_RPC_URL,
     chainId: parseInt(import.meta.env.VITE_ARB_SEPOLIA_CHAIN_ID),
-    name: "Arbitrum Sepolia",
+    name: "Superposition Testnet",
     explorerUrl: import.meta.env.VITE_ARB_SEPOLIA_EXPLORER_URL,
   },
 } as const;

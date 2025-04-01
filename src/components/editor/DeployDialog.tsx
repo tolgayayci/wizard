@@ -216,7 +216,7 @@ export function DeployDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <RocketIcon className="h-5 w-5" />
-            Deploy to Arbitrum Sepolia
+            Deploy to Superposition Testnet
           </DialogTitle>
         </DialogHeader>
 
@@ -227,7 +227,7 @@ export function DeployDialog({
             <div>
               <h4 className="font-medium">Network Information</h4>
               <p className="text-sm text-muted-foreground">
-                Your contract will be deployed to Arbitrum Sepolia testnet
+                Your contract will be deployed to Superposition Testnet
               </p>
             </div>
           </div>

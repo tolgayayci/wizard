@@ -71,7 +71,7 @@ const WELCOME_STEPS = [
   {
     Icon: Rocket,
     title: "One-Click Deployment",
-    description: "Deploy your contracts to Arbitrum Sepolia testnet:",
+    description: "Deploy your contracts to Superposition Testnet:",
     features: [
       "No wallet setup required",
       "Automated deployment process",

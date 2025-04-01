@@ -124,7 +124,7 @@ const FEATURES = [
   {
     icon: Network,
     title: '1-Click Arbitrum Deployment',
-    description: 'Deploy directly to Arbitrum Sepolia. Auto-configured RPC endpoints and pre-funded wallet.',
+    description: 'Deploy directly to Superposition Testnet. Auto-configured RPC endpoints and pre-funded wallet.',
     color: 'from-yellow-500/20 via-transparent to-transparent',
     preview: (
       <div className="relative overflow-hidden rounded-lg border bg-muted h-[200px]">
@@ -143,7 +143,7 @@ const FEATURES = [
               </div>
               <div>
                 <div className="font-medium text-sm">Ready to Deploy</div>
-                <div className="text-xs text-muted-foreground">Arbitrum Sepolia</div>
+                <div className="text-xs text-muted-foreground">Superposition Testnet</div>
               </div>
             </div>
             <Button size="sm" className="h-8 gap-1.5">

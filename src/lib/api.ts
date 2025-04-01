@@ -92,7 +92,7 @@ export async function compileContract(
 }
 
 /**
- * Deploy a compiled contract to Arbitrum Sepolia
+ * Deploy a compiled contract to Superposition Testnet
  */
 export async function deployContract(
   userId: string,

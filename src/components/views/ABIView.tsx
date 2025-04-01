@@ -94,7 +94,7 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
       const isValid = await verifyContract(address);
       setIsContractVerified(isValid);
       if (!isValid) {
-        setError('Contract not deployed on Arbitrum Sepolia');
+        setError('Contract not deployed on Superposition Testnet');
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to verify contract');
