@@ -410,79 +410,135 @@ impl AccessControl {
     }
 }`;
 
-const CRYPTO_UTILS_CODE = `// OpenZeppelin Cryptography Utils Implementation
-use stylus_sdk::{
-    alloy_primitives::U256,
-    prelude::*,
-};
+// const CRYPTO_UTILS_CODE = `// OpenZeppelin Cryptography Utils Implementation
+// use stylus_sdk::{
+//     alloy_primitives::U256,
+//     prelude::*,
+// };
 
+// sol_storage! {
+//     #[entrypoint]
+//     pub struct CryptoUtils {
+//         // ECDSA verification state
+//         mapping(bytes32 => bool) signed_messages;
+        
+//         // Message recovery
+//         mapping(address => bytes32) last_message;
+//     }
+// }
+
+// #[external]
+// impl CryptoUtils {
+//     // Verify ECDSA signature
+//     pub fn verify_signature(
+//         &self,
+//         message: [u8; 32],
+//         signature: Vec<u8>,
+//         signer: Address
+//     ) -> bool {
+//         // ECDSA verification logic
+//         true // Placeholder
+//     }
+
+//     // Recover signer from signature
+//     pub fn recover_signer(
+//         &mut self,
+//         message: [u8; 32],
+//         signature: Vec<u8>
+//     ) -> Address {
+//         // Signature recovery logic
+//         Address::ZERO // Placeholder
+//     }
+
+//     // Hash message
+//     pub fn hash_message(&self, message: Vec<u8>) -> [u8; 32] {
+//         // Keccak256 hashing
+//         [0u8; 32] // Placeholder
+//     }
+
+//     // Store signed message
+//     pub fn store_signed_message(
+//         &mut self,
+//         message: [u8; 32],
+//         signature: Vec<u8>
+//     ) -> bool {
+//         require!(
+//             self.verify_signature(message, signature.clone(), msg::sender()),
+//             "CryptoUtils: invalid signature"
+//         );
+        
+//         self.signed_messages.setter(message).set(true);
+//         self.last_message.setter(msg::sender()).set(message);
+//         true
+//     }
+
+//     // View functions
+//     pub fn is_message_signed(&self, message: [u8; 32]) -> bool {
+//         self.signed_messages.get(message)
+//     }
+
+//     pub fn get_last_message(&self, signer: Address) -> [u8; 32] {
+//         self.last_message.get(signer)
+//     }
+// }`;
+
+const ETH_BUCHAREST_CODE = `extern crate alloc;
+
+/// Import items from the SDK. The prelude contains common traits and macros.
+use stylus_sdk::{alloy_primitives::U256, prelude::*};
+
+// Define some persistent storage using the Solidity ABI.
+// Counter will be the entrypoint.
 sol_storage! {
     #[entrypoint]
-    pub struct CryptoUtils {
-        // ECDSA verification state
-        mapping(bytes32 => bool) signed_messages;
-        
-        // Message recovery
-        mapping(address => bytes32) last_message;
+    pub struct Counter {
+        uint256 number;
     }
 }
 
-#[external]
-impl CryptoUtils {
-    // Verify ECDSA signature
-    pub fn verify_signature(
-        &self,
-        message: [u8; 32],
-        signature: Vec<u8>,
-        signer: Address
-    ) -> bool {
-        // ECDSA verification logic
-        true // Placeholder
+/// Declare that Counter is a contract with the following external methods.
+#[public]
+impl Counter {
+    /// Gets the number from storage.
+    pub fn number(&self) -> U256 {
+        self.number.get()
     }
 
-    // Recover signer from signature
-    pub fn recover_signer(
-        &mut self,
-        message: [u8; 32],
-        signature: Vec<u8>
-    ) -> Address {
-        // Signature recovery logic
-        Address::ZERO // Placeholder
+    /// Sets a number in storage to a user-specified value.
+    pub fn set_number(&mut self, new_number: U256) {
+        self.number.set(new_number);
     }
 
-    // Hash message
-    pub fn hash_message(&self, message: Vec<u8>) -> [u8; 32] {
-        // Keccak256 hashing
-        [0u8; 32] // Placeholder
+    /// Sets a number in storage to a user-specified value.
+    pub fn mul_number(&mut self, new_number: U256) {
+        self.number.set(new_number * self.number.get());
     }
 
-    // Store signed message
-    pub fn store_signed_message(
-        &mut self,
-        message: [u8; 32],
-        signature: Vec<u8>
-    ) -> bool {
-        require!(
-            self.verify_signature(message, signature.clone(), msg::sender()),
-            "CryptoUtils: invalid signature"
-        );
-        
-        self.signed_messages.setter(message).set(true);
-        self.last_message.setter(msg::sender()).set(message);
-        true
+    /// Sets a number in storage to a user-specified value.
+    pub fn add_number(&mut self, new_number: U256) {
+        self.number.set(new_number + self.number.get());
     }
 
-    // View functions
-    pub fn is_message_signed(&self, message: [u8; 32]) -> bool {
-        self.signed_messages.get(message)
-    }
-
-    pub fn get_last_message(&self, signer: Address) -> [u8; 32] {
-        self.last_message.get(signer)
+    /// Increments \`number\` and updates its value in storage.
+    pub fn increment(&mut self) {
+        let number = self.number.get();
+        self.set_number(number + U256::from(1));
     }
 }`;
 
 export const PROJECT_TEMPLATES = [
+  {
+    name: "Welcome to ETH Bucharest",
+    description: "Starter template for ETH Bucharest from bayge.xyz.",
+    icon: Code2,
+    code: ETH_BUCHAREST_CODE,
+    features: [
+      "Get",
+      "Ready",
+      "To",
+      "Hack",
+    ],
+  },
   {
     name: "Counter Contract",
     description: "A foundational smart contract demonstrating state management and basic interactions. Perfect starting point for learning Stylus development with a simple yet practical example.",
@@ -573,18 +629,18 @@ export const PROJECT_TEMPLATES = [
     isOpenZeppelin: true,
     documentation: "https://docs.openzeppelin.com/contracts/4.x/access-control",
   },
-  {
-    name: "Cryptography Utils",
-    description: "Essential cryptographic utilities for blockchain applications. Includes signature verification, message recovery, and secure hashing implementations based on OpenZeppelin standards.",
-    icon: KeyRound,
-    code: CRYPTO_UTILS_CODE,
-    features: [
-      "Verify digital signatures",
-      "Implement signature recovery",
-      "Handle message hashing",
-      "Secure data validation",
-    ],
-    isOpenZeppelin: true,
-    documentation: "https://docs.openzeppelin.com/contracts/4.x/utilities",
-  }
+//   {
+//     name: "Cryptography Utils",
+//     description: "Essential cryptographic utilities for blockchain applications. Includes signature verification, message recovery, and secure hashing implementations based on OpenZeppelin standards.",
+//     icon: KeyRound,
+//     code: CRYPTO_UTILS_CODE,
+//     features: [
+//       "Verify digital signatures",
+//       "Implement signature recovery",
+//       "Handle message hashing",
+//       "Secure data validation",
+//     ],
+//     isOpenZeppelin: true,
+//     documentation: "https://docs.openzeppelin.com/contracts/4.x/utilities",
+//   }
 ];

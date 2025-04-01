@@ -89,6 +89,7 @@ export function ABIExecuteDialog({
       if (method.stateMutability === 'view' || method.stateMutability === 'pure') {
         // For read-only methods
         result = await contract[method.name](...parsedInputs);
+        console.log('Result:', result);
       } else {
         // For state-changing methods
         const tx = await contract[method.name](...parsedInputs);
@@ -117,7 +118,7 @@ export function ABIExecuteDialog({
         .from('abi_calls')
         .insert({
           project_id: projectId,
-          contract_address: successResult.txHash,
+          contract_address: receipt?.hash || "read-only-call",
           method_name: method.name,
           method_type: method.type,
           inputs,
@@ -144,7 +145,7 @@ export function ABIExecuteDialog({
         .from('abi_calls')
         .insert({
           project_id: projectId,
-          contract_address: errorResult.txHash,
+          contract_address: contractAddress,
           method_name: method.name,
           method_type: method.type,
           inputs,

@@ -238,14 +238,15 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
               </DialogHeader>
 
               <ScrollArea className="flex-1 min-h-0">
-                <div className="space-y-4 py-4">
+                <div className="space-y-4">
                   {/* Contract Address */}
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Contract</h4>
-                    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Terminal className="h-4 w-4 text-muted-foreground" />
-                        <code className="font-mono text-sm">{selectedCall.contract_address || 'Read Only, No Transaction'}</code>
+                  {selectedCall.contract_address !== 'read-only-call' && (
+                    <div>
+                      <h4 className="text-sm font-medium mb-2 pt-4">TX Hash</h4>
+                      <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Terminal className="h-4 w-4 text-muted-foreground" />
+                        <code className="font-mono text-sm">{selectedCall.contract_address.slice(0, 12) + '...' + selectedCall.contract_address.slice(-8) || 'Read Only, No Transaction'}</code>
                       </div>
                       <div className="flex items-center gap-1">
                         <Button
@@ -262,7 +263,7 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                           className="h-8 w-8"
                           onClick={() => {
                             window.open(
-                              `https://testnet-explorer.superposition.so/address/${selectedCall.contract_address}`,
+                              `https://testnet-explorer.superposition.so/tx/${selectedCall.contract_address}`,
                               '_blank'
                             );
                           }}
@@ -272,6 +273,7 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Input Parameters */}
                   {Object.keys(selectedCall.inputs).length > 0 && (
