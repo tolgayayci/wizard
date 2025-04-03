@@ -649,6 +649,8 @@ mod test {
     use proptest::prelude::*;
 
     proptest! {
+        #![proptest_config(ProptestConfig { cases: 5000, ..Default::default() })]
+
         #[test]
         fn test_solve(starting_hash in any::<[u8; 64]>()) {
             // First, let's test if the user-defined algorithm is consistent.
