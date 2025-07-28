@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SignInDialog } from '@/components/landing/SignInDialog';
 import { cn } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 
 const DEVELOPERS = [
   {
@@ -30,6 +31,8 @@ const DEVELOPERS = [
 ];
 
 export function Hero() {
+  const { theme } = useTheme();
+  
   const handleLaunchClick = () => {
     const trigger = document.querySelector<HTMLButtonElement>('[data-signin-trigger]');
     if (trigger) {
@@ -130,7 +133,7 @@ export function Hero() {
               </div>
               <div className="text-sm">
                 <span className="text-muted-foreground">Join</span>{' '}
-                <span className="font-medium">50+ developers</span>{' '}
+                <span className="font-medium">90+ developers</span>{' '}
                 <span className="text-muted-foreground">building with Wizard</span>
               </div>
             </div>
@@ -158,15 +161,13 @@ export function Hero() {
                 </div>
               </div>
 
-              {/* App Preview Content - Replace this with your app screenshot */}
-              <div className="aspect-[16/10] bg-muted/20">
-                {/* This is where you'll add your app screenshot */}
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                  <div className="text-center">
-                    <Play className="h-10 w-10 mx-auto mb-4 text-primary/40" />
-                    <p className="text-sm">App Preview</p>
-                  </div>
-                </div>
+              {/* App Preview Content */}
+              <div className="aspect-[1.71/1] bg-background">
+                <img
+                  src={theme === 'dark' ? '/images/main-dark.png' : '/images/main-light.png'}
+                  alt="Wizard App Preview"
+                  className="w-full h-full object-contain"
+                />
               </div>
             </div>
           </motion.div>
