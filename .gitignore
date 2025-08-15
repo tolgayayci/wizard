@@ -53,3 +53,5 @@ docs/.vitepress/cache
 docs/.vitepress/dist
 
 backend
+CLAUDE.md
+.claude
