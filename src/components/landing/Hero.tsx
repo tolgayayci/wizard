@@ -3,7 +3,6 @@ import { ExternalLink, Users, Play, Wand2, RocketIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { SignInDialog } from '@/components/landing/SignInDialog';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 
@@ -34,7 +33,7 @@ export function Hero() {
   const { theme } = useTheme();
   
   const handleLaunchClick = () => {
-    const trigger = document.querySelector<HTMLButtonElement>('[data-signin-trigger]');
+    const trigger = document.querySelector<HTMLButtonElement>('[data-auth-trigger]');
     if (trigger) {
       trigger.click();
     }
@@ -107,7 +106,6 @@ export function Hero() {
               </Button>
             </div>
 
-            <SignInDialog />
 
             <div className="flex items-center gap-3">
               <div className="flex -space-x-2">

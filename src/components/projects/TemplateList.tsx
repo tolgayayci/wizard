@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { PROJECT_TEMPLATES } from '@/lib/templates';
-import { ProjectCard } from './ProjectCard';
-import { TemplateDialog } from './TemplateDialog';
+import { TemplateListRow } from './TemplateListRow';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
-import { ArrowUpRight, Sparkles } from 'lucide-react';
+import { Sparkles, Code2 } from 'lucide-react';
 import { SortOption } from './ProjectTabs';
 import { useToast } from '@/hooks/use-toast';
 
@@ -20,18 +19,12 @@ export function TemplateList({
   isLoading,
   sortBy = 'name_asc'
 }: TemplateListProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<typeof PROJECT_TEMPLATES[0] | null>(null);
+  const [creatingTemplate, setCreatingTemplate] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleUseTemplate = (template: typeof PROJECT_TEMPLATES[0]) => {
-    // Don't allow using OpenZeppelin templates yet
-    if (template.isOpenZeppelin) {
-      toast({
-        title: "Coming Soon",
-        description: "OpenZeppelin templates will be available soon!",
-      });
-      return;
-    }
+  const handleUseTemplate = async (template: typeof PROJECT_TEMPLATES[0]) => {
+    // Prevent multiple clicks on same template
+    if (creatingTemplate === template.name) return;
 
     // Ensure template code exists
     if (!template.code) {
@@ -43,11 +36,22 @@ export function TemplateList({
       return;
     }
 
-    onUseTemplate({
-      name: template.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
-      description: template.description,
-      template: template,
-    });
+    // Set loading state for this specific template
+    setCreatingTemplate(template.name);
+
+    try {
+      // Create project with template name and data
+      const projectData = {
+        name: template.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'),
+        description: template.description,
+        template: template,
+      };
+
+      await onUseTemplate(projectData);
+    } finally {
+      // Clear loading state regardless of success/failure
+      setCreatingTemplate(null);
+    }
   };
 
   if (isLoading) {
@@ -99,34 +103,36 @@ export function TemplateList({
 
   return (
     <div className="h-full">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTemplates.map((template, index) => (
-          <ProjectCard
-            key={index}
-            name={template.name}
-            description={template.description}
-            icon={template.icon}
-            actionLabel={template.isOpenZeppelin ? "Coming Soon" : "Use Template"}
-            actionIcon={ArrowUpRight}
-            onAction={() => template.isOpenZeppelin ? null : setSelectedTemplate(template)}
-            features={template.features}
-            isOpenZeppelin={template.isOpenZeppelin}
-            variant="template"
-          />
-        ))}
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[30%]">
+                <div className="flex items-center gap-2">
+                  <Code2 className="h-4 w-4" />
+                  Template
+                </div>
+              </th>
+              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[50%]">
+                Description
+              </th>
+              <th className="h-11 px-6 text-right text-xs font-medium text-muted-foreground w-[20%]">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {filteredTemplates.map((template, index) => (
+              <TemplateListRow
+                key={index}
+                template={template}
+                onUseTemplate={handleUseTemplate}
+                isCreating={creatingTemplate === template.name}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
-
-      <TemplateDialog
-        open={selectedTemplate !== null}
-        onOpenChange={(open) => !open && setSelectedTemplate(null)}
-        template={selectedTemplate}
-        onUseTemplate={() => {
-          if (selectedTemplate) {
-            handleUseTemplate(selectedTemplate);
-            setSelectedTemplate(null);
-          }
-        }}
-      />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import { ProjectTabs, SortOption } from '@/components/projects/ProjectTabs';
 import { ProjectEditDialog } from '@/components/projects/ProjectEditDialog';
 import { ProjectDeleteDialog } from '@/components/projects/ProjectDeleteDialog';
 import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
+import { GitHubImportDialog } from '@/components/projects/GitHubImportDialog';
 import { WelcomeDialog } from '@/components/landing/WelcomeDialog';
 import { cn } from '@/lib/utils';
 import { SEO } from '@/components/seo/SEO';
@@ -32,7 +33,9 @@ export function ProjectsPage() {
   const [activeSection, setActiveSection] = useState<'projects' | 'templates'>('projects');
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
+  const [showGitHubImportDialog, setShowGitHubImportDialog] = useState(false);
   const [showWelcomeTour, setShowWelcomeTour] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -42,6 +45,8 @@ export function ProjectsPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
+        
+        setCurrentUser({ id: user.id });
 
         const { data: userProjects, error } = await supabase
           .from('projects')
@@ -136,7 +141,7 @@ export function ProjectsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
 
-      // Create project with empty code if no template is provided
+      // Create project in database first
       const { data: project, error } = await supabase
         .from('projects')
         .insert({
@@ -152,10 +157,37 @@ export function ProjectsPage() {
 
       if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Project created successfully",
-      });
+      // Initialize backend filesystem if template is provided
+      if (data.template) {
+        try {
+          const { initializeProjectFilesystem } = await import('@/lib/api');
+          
+          await initializeProjectFilesystem(
+            project.id,
+            user.id,
+            data.name,
+            data.template.code,
+            data.template.dependencies || []
+          );
+          
+          toast({
+            title: "Template Project Created",
+            description: `${data.template.name} template has been set up successfully`,
+          });
+        } catch (backendError) {
+          console.warn('Backend filesystem initialization failed:', backendError);
+          // Continue anyway - the database project is created
+          toast({
+            title: "Project Created",
+            description: "Project created successfully (filesystem setup pending)",
+          });
+        }
+      } else {
+        toast({
+          title: "Success",
+          description: "Project created successfully",
+        });
+      }
 
       // Refresh projects list
       await fetchProjects();
@@ -231,6 +263,13 @@ export function ProjectsPage() {
     } finally {
       setProjectToEdit(null);
     }
+  };
+
+  const handleGitHubImportSuccess = (projectId: string) => {
+    // Refresh projects to include the new imported project
+    fetchProjects();
+    // Navigate to the new project
+    navigate(`/projects/${projectId}`);
   };
 
   const sections = [
@@ -330,7 +369,10 @@ export function ProjectsPage() {
         <div className="h-full flex flex-col py-8">
           {/* Fixed Project Header */}
           <div className="flex-none mb-8">
-            <ProjectHeader onNewProject={() => setShowNewProjectDialog(true)} />
+            <ProjectHeader 
+              onNewProject={() => setShowNewProjectDialog(true)}
+              onImportFromGitHub={() => setShowGitHubImportDialog(true)}
+            />
           </div>
 
           {/* Fixed Tabs */}
@@ -374,6 +416,13 @@ export function ProjectsPage() {
         onDescriptionChange={setEditDescription}
         onClose={() => setProjectToEdit(null)}
         onConfirm={handleUpdateProject}
+      />
+
+      <GitHubImportDialog
+        open={showGitHubImportDialog}
+        onClose={() => setShowGitHubImportDialog(false)}
+        onSuccess={handleGitHubImportSuccess}
+        userId={currentUser?.id || ''}
       />
 
       <WelcomeDialog

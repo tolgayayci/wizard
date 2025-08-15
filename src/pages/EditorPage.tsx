@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FileCode2, Terminal, PlayCircle, Wand2, Clock, Calendar, Pencil, Check, X, Share2, Bug } from 'lucide-react';
+import { FileCode2, Terminal as TerminalIcon, PlayCircle, Wand2, Clock, Calendar, Pencil, Check, X, Share2, FolderTree, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Editor } from '@/components/Editor';
@@ -10,17 +10,23 @@ import { supabase } from '@/lib/supabase';
 import { compileContract } from '@/lib/api';
 import { UserNav } from '@/components/UserNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { CompilerView } from '@/components/views/CompilerView';
 import { ABIView } from '@/components/views/ABIView';
 import { cn } from '@/lib/utils';
 import { SEO } from '@/components/seo/SEO';
 import { ShareProjectDialog } from '@/components/ShareProjectDialog';
 import { Badge } from '@/components/ui/badge';
+import { ProjectBadge } from '@/components/ui/ProjectBadge';
+import { PackageManagerDialog } from '@/components/packages/PackageManagerDialogNew';
+import { FileExplorerView } from '@/components/explorer/FileExplorerView';
+import { Terminal, TerminalRef } from '@/components/views/Terminal';
+import axios from 'axios';
+import { API_URL } from '@/lib/config';
 
 const VIEWS = [
+  { id: 'explorer', title: 'Files', icon: FolderTree },
   { id: 'editor', title: 'Editor', icon: FileCode2 },
   { id: 'abi', title: 'Contract Interface', icon: PlayCircle },
-  { id: 'console', title: 'Console', icon: Terminal },
+  { id: 'console', title: 'Terminal', icon: TerminalIcon },
 ] as const;
 
 type ViewId = typeof VIEWS[number]['id'];
@@ -28,13 +34,19 @@ type ViewId = typeof VIEWS[number]['id'];
 export function EditorPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
-  const [activeViews, setActiveViews] = useState<ViewId[]>(['editor', 'abi', 'console']);
+  const [activeViews, setActiveViews] = useState<ViewId[]>(['explorer', 'editor', 'abi', 'console']);
   const [lastCompilationResult, setLastCompilationResult] = useState<CompilationResult | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [refreshABITrigger, setRefreshABITrigger] = useState(0);
+  const [selectedFile, setSelectedFile] = useState<string | null>('src/lib.rs');
+  const [currentFileContent, setCurrentFileContent] = useState<string>('');
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const terminalRef = useRef<TerminalRef>(null);
+  const [user, setUser] = useState<any>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const { id } = useParams();
   const navigate = useNavigate();
@@ -84,7 +96,7 @@ export function EditorPage() {
 
         // Fetch last compilation regardless of status
         const { data: compilations, error: compilationError } = await supabase
-          .from('compilation_history')
+          .from('compilations')
           .select('*')
           .eq('project_id', id)
           .order('created_at', { ascending: false })
@@ -93,13 +105,20 @@ export function EditorPage() {
         if (!compilationError && compilations && compilations.length > 0) {
           const lastCompilation = compilations[0];
           setLastCompilationResult({
-            success: lastCompilation.status === 'success',
-            exit_code: lastCompilation.exit_code,
+            success: lastCompilation.success,
+            exit_code: lastCompilation.exit_code || 0,
             stdout: lastCompilation.stdout || '',
             stderr: lastCompilation.stderr || '',
-            details: lastCompilation.details || { compilation_time: Date.now() / 1000 },
-            abi: lastCompilation.abi,
-            code_snapshot: lastCompilation.code_snapshot,
+            details: {
+              status: lastCompilation.status,
+              contract_size: lastCompilation.contract_size,
+              wasm_size: lastCompilation.wasm_size,
+              metadata_hash: lastCompilation.metadata_hash,
+            },
+            abi: lastCompilation.abi_json || null,
+            code_snapshot: lastCompilation.code_snapshot || '',
+            wasm_available: !!lastCompilation.wasm_binary,
+            abi_available: !!(lastCompilation.abi_json || lastCompilation.abi_solidity),
           });
         }
       } catch (error) {
@@ -122,6 +141,61 @@ export function EditorPage() {
       nameInputRef.current.select();
     }
   }, [isEditingName]);
+
+  // Get current user
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, []);
+
+  // Auto-load lib.rs when project and user are ready
+  useEffect(() => {
+    if (project && user && selectedFile === 'src/lib.rs' && !currentFileContent) {
+      loadFileContent('src/lib.rs');
+    }
+  }, [project, user]);
+
+  // Function to load file content
+  const loadFileContent = async (filePath: string) => {
+    if (!user || !project) return;
+    
+    setIsLoadingFile(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/filesystem/read`, {
+        user_id: user.id,
+        project_id: project.id,
+        path: filePath,
+      });
+      
+      if (response.data.success) {
+        setCurrentFileContent(response.data.data.content);
+        setSelectedFile(filePath);
+        
+        // Update the project code to show the file content
+        setProject(prev => prev ? { ...prev, code: response.data.data.content } : null);
+        
+        // File loaded successfully - no need for toast notification
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to load file',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error loading file:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load file',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingFile(false);
+    }
+  };
 
   const handleStartEditing = () => {
     if (project) {
@@ -185,28 +259,71 @@ export function EditorPage() {
   const handleSave = async () => {
     if (!project) return;
     
-    // Fetch the latest project data to update the UI
-    try {
-      const { data: updatedProject, error } = await supabase
-        .from('projects')
-        .select('*')
-        .eq('id', project.id)
-        .single();
+    // If a file is selected, save to that file
+    if (selectedFile && user) {
+      try {
+        const response = await axios.post(`${API_URL}/api/filesystem/write`, {
+          user_id: user.id,
+          project_id: project.id,
+          path: selectedFile,
+          content: project.code,
+        });
+        
+        if (response.data.success) {
+          toast({
+            title: 'File saved',
+            description: `Updated ${selectedFile}`,
+          });
+        } else {
+          toast({
+            title: 'Error',
+            description: 'Failed to save file',
+            variant: 'destructive',
+          });
+        }
+      } catch (error) {
+        console.error('Error saving file:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save file',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      // Save to project in database
+      try {
+        const { error: saveError } = await supabase
+          .from('projects')
+          .update({ 
+            code: project.code,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', project.id);
 
-      if (error) throw error;
-      if (!updatedProject) throw new Error('Project not found');
-
-      setProject(updatedProject);
-    } catch (error) {
-      console.error('Error fetching updated project:', error);
+        if (saveError) throw saveError;
+        
+        toast({
+          title: 'Project saved',
+          description: 'Code saved to database',
+        });
+      } catch (error) {
+        console.error('Error saving project:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to save project',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
   const handleCompile = async () => {
-    if (!project || isCompiling) return;
+    if (!project || isCompiling || !user) return;
 
-    // First save the current code
+    setIsCompiling(true);
+
     try {
+      // First save the current code
       const { error: saveError } = await supabase
         .from('projects')
         .update({ 
@@ -216,76 +333,119 @@ export function EditorPage() {
         .eq('id', project.id);
 
       if (saveError) throw saveError;
-    } catch (error) {
-      console.error('Error saving code:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save code before compilation",
-        variant: "destructive",
+
+      // Execute compilation via API
+      const response = await axios.post(`${API_URL}/api/local/compile`, {
+        user_id: user.id,
+        project_id: project.id,
       });
-      return;
-    }
 
-    setIsCompiling(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Authentication required");
+      if (response.data.success && response.data.data) {
+        const compilationData = response.data.data;
+        
+        // Create a proper compilation result
+        const compilationResult: CompilationResult = {
+          success: compilationData.success,
+          exit_code: compilationData.success ? 0 : 1,
+          stdout: compilationData.output || '',
+          stderr: compilationData.errors ? compilationData.errors.join('\n') : '',
+          details: {
+            status: compilationData.success ? 'success' : 'failed',
+            compilation_time: Date.now() / 1000,
+            contract_size: compilationData.contract_size,
+            wasm_size: compilationData.wasm_size,
+            metadata_hash: compilationData.metadata_hash,
+          },
+          abi: compilationData.abi_json ? JSON.parse(compilationData.abi_json) : [],
+          code_snapshot: project.code,
+          wasm_available: !!compilationData.wasm,
+          abi_available: !!(compilationData.abi_json || compilationData.abi_solidity),
+        };
 
-      const result = await compileContract(project.code, user.id, project.id);
-      setLastCompilationResult(result);
+        setLastCompilationResult(compilationResult);
 
-      // Save compilation result to history
-      const { error: historyError } = await supabase
-        .from('compilation_history')
-        .insert({
+        // Save to new compilations table
+        const compilationRecord = {
           project_id: project.id,
           user_id: user.id,
+          success: compilationData.success,
+          status: compilationData.success ? 'success' : (compilationData.wasm ? 'partial' : 'failed'),
+          wasm_binary: compilationData.wasm ? btoa(String.fromCharCode.apply(null, compilationData.wasm)) : null,
+          wasm_size: compilationData.wasm_size,
+          wasm_hash: null, // Will be computed server-side
+          abi_json: compilationData.abi_json ? JSON.parse(compilationData.abi_json) : null,
+          abi_solidity: compilationData.abi_solidity,
+          contract_size: compilationData.contract_size,
+          metadata_hash: compilationData.metadata_hash,
+          exit_code: compilationData.success ? 0 : 1,
+          stdout: compilationData.output || '',
+          stderr: compilationData.errors ? compilationData.errors.join('\n') : '',
+          compilation_output: compilationData.output || '',
           code_snapshot: project.code,
-          result: {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            details: result.details,
-          },
-          status: result.success ? 'success' : 'error',
-          exit_code: result.exit_code,
-          stdout: result.stdout,
-          stderr: result.stderr,
-          abi: result.abi,
-          error_type: 'compilation',
-          metadata: {
-            compilation_time: result.details.compilation_time,
-            project_path: result.details.project_path,
-          }
+          error_type: !compilationData.success ? 
+            (compilationData.output?.includes('Connection refused') ? 'network' : 
+             compilationData.output?.includes('error[E') ? 'compilation' : 'unknown') : null,
+          compilation_started_at: new Date().toISOString(),
+          compilation_completed_at: new Date().toISOString(),
+        };
+
+        const { error: insertError } = await supabase
+          .from('compilations')
+          .insert(compilationRecord);
+
+        if (insertError) {
+          console.error('Failed to save compilation to database:', insertError);
+        }
+
+        // Show raw compilation output in terminal
+        if (terminalRef.current && compilationData.output) {
+          // Display raw cargo stylus check output preserving formatting
+          const rawOutput = compilationData.output.replace(/"/g, '\\"');
+          terminalRef.current.executeCommand(`printf "${rawOutput}"`);
+        }
+
+        toast({
+          title: compilationData.success ? "Compilation Successful" : "Compilation Failed",
+          description: compilationData.success 
+            ? "Your contract compiled successfully and is ready for deployment" 
+            : "Check the terminal for error details",
+          variant: compilationData.success ? "default" : "destructive",
         });
-
-      if (historyError) throw historyError;
-
-      // Update project activity
-      await supabase
-        .from('projects')
-        .update({ 
-          last_activity_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', project.id);
-
-      toast({
-        title: result.success ? "Compilation Successful" : "Compilation Failed",
-        description: result.success 
-          ? "Your code compiled successfully"
-          : "Failed to compile your code",
-        variant: result.success ? "default" : "destructive",
-      });
+      } else {
+        throw new Error(response.data.error?.message || 'Compilation failed');
+      }
     } catch (error) {
       console.error('Compilation error:', error);
+      
+      // Set failed compilation result
+      setLastCompilationResult({
+        success: false,
+        exit_code: 1,
+        stdout: '',
+        stderr: error instanceof Error ? error.message : 'Unknown compilation error',
+        details: {
+          status: 'failed',
+          compilation_time: Date.now() / 1000,
+        },
+        abi: null,
+        code_snapshot: project.code,
+        wasm_available: false,
+        abi_available: false,
+      });
+
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to compile project",
+        title: "Compilation Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive",
       });
     } finally {
       setIsCompiling(false);
     }
+  };
+
+  const handleCommandComplete = () => {
+    // Clear the compiling state when any command completes in terminal
+    setIsCompiling(false);
   };
 
   const toggleView = (viewId: ViewId) => {
@@ -341,9 +501,6 @@ export function EditorPage() {
     }
   };
 
-  const handleReportIssue = () => {
-    window.open('https://github.com/tolgayayci/wizard/issues/new?labels=bug&template=bug_report.md', '_blank');
-  };
 
   if (!project) {
     return (
@@ -359,17 +516,46 @@ export function EditorPage() {
   const hasConsole = activeViews.includes('console');
   const hasEditor = activeViews.includes('editor');
   const hasABI = activeViews.includes('abi');
-  const mainHeight = hasConsole ? 'h-[75%]' : 'h-full';
-  const consoleHeight = 'h-[25%]';
+  const hasExplorer = activeViews.includes('explorer');
 
-  const getMainPanelWidth = () => {
-    const activeMainViews = [hasEditor, hasABI].filter(Boolean).length;
-    if (activeMainViews === 0) return '100%';
-    return `${100 / activeMainViews}%`;
+  const getMainPanelWidth = (viewType: 'explorer' | 'editor' | 'abi') => {
+    const activeViews = { hasExplorer, hasEditor, hasABI };
+    const activeCount = Object.values(activeViews).filter(Boolean).length;
+    
+    // If only one view is active, take full width
+    if (activeCount === 1) return '100%';
+    
+    // If two views are active
+    if (activeCount === 2) {
+      if (!activeViews.hasExplorer) {
+        // Editor and ABI only: Editor gets 60%, ABI gets 40%
+        return viewType === 'editor' ? '60%' : '40%';
+      }
+      if (!activeViews.hasEditor) {
+        // Explorer and ABI: Explorer gets 25%, ABI gets 75%
+        return viewType === 'explorer' ? '25%' : '75%';
+      }
+      if (!activeViews.hasABI) {
+        // Explorer and Editor: Explorer gets 20%, Editor gets 80%
+        return viewType === 'explorer' ? '20%' : '80%';
+      }
+    }
+    
+    // All three views active: Explorer 14.29% (1/7), Editor 57.14% (4/7), ABI 28.57% (2/7)
+    if (activeCount === 3) {
+      switch (viewType) {
+        case 'explorer': return '14.29%';
+        case 'editor': return '57.14%';
+        case 'abi': return '28.57%';
+        default: return '28.57%';
+      }
+    }
+    
+    return '100%';
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
       <SEO 
         title={project?.name || 'Editor'}
         description={project?.description || 'Smart contract development environment'}
@@ -426,6 +612,12 @@ export function EditorPage() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <h1 className="text-xl font-semibold">{project.name}</h1>
+                      <ProjectBadge 
+                        project={project} 
+                        variant="detailed" 
+                        showLink={true}
+                        className="ml-2"
+                      />
                       <Button
                         variant="ghost"
                         size="icon"
@@ -433,21 +625,6 @@ export function EditorPage() {
                         onClick={handleStartEditing}
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Badge 
-                        variant="outline" 
-                        className="px-1 h-4 text-[10px] bg-primary/10 text-primary hover:bg-primary/20"
-                      >
-                        BETA
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1.5"
-                        onClick={handleReportIssue}
-                      >
-                        <Bug className="h-3.5 w-3.5" />
-                        <span className="text-xs">Report Issue</span>
                       </Button>
                     </div>
                   )}
@@ -502,6 +679,16 @@ export function EditorPage() {
               <Button
                 variant="outline"
                 className="h-9 px-3 flex items-center gap-2"
+                onClick={() => navigate(`/projects/${project?.id}/compilations`)}
+                title="View compilation history"
+              >
+                <Clock className="h-[1.2rem] w-[1.2rem]" />
+                <span className="text-sm">History</span>
+              </Button>
+              
+              <Button
+                variant="outline"
+                className="h-9 px-3 flex items-center gap-2"
                 onClick={() => handleShareDialogChange(true)}
               >
                 <div className={cn(
@@ -519,18 +706,43 @@ export function EditorPage() {
       </header>
 
       {project && (
-        <ShareProjectDialog
-          open={showShareDialog}
-          onOpenChange={handleShareDialogChange}
-          projectId={project.id}
-          projectName={project.name}
-        />
+        <>
+          <ShareProjectDialog
+            open={showShareDialog}
+            onOpenChange={handleShareDialogChange}
+            projectId={project.id}
+            projectName={project.name}
+          />
+          <PackageManagerDialog
+            open={showPackageDialog}
+            onOpenChange={setShowPackageDialog}
+            projectId={project.id}
+            userId={user?.id || ''}
+          />
+        </>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className={cn("flex", mainHeight)}>
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 5rem)' }}>
+        <div className={cn("flex overflow-hidden", hasConsole ? "flex-1" : "h-full")}>
+          {hasExplorer && (
+            <div style={{ width: getMainPanelWidth('explorer') }} className="h-full overflow-hidden p-2">
+              <FileExplorerView
+                userId={user?.id || ''}
+                projectId={project.id}
+                projectName={project.name}
+                selectedFile={selectedFile}
+                onFileSelect={(path) => {
+                  // Extract just the file path part (remove the project path prefix)
+                  const relativePath = path.split(`/${project.id}/`).pop() || path;
+                  loadFileContent(relativePath);
+                }}
+                onManagePackages={() => setShowPackageDialog(true)}
+              />
+            </div>
+          )}
+
           {hasEditor && (
-            <div style={{ width: getMainPanelWidth() }} className="h-full overflow-hidden p-2">
+            <div style={{ width: getMainPanelWidth('editor') }} className="h-full overflow-hidden p-2">
               <Editor
                 value={project.code}
                 onChange={(code) => setProject(prev => prev ? { ...prev, code } : null)}
@@ -540,12 +752,13 @@ export function EditorPage() {
                 lastCompilation={lastCompilationResult}
                 onDeploySuccess={handleDeploySuccess}
                 onSave={handleSave}
+                currentFile={selectedFile}
               />
             </div>
           )}
 
           {hasABI && (
-            <div style={{ width: getMainPanelWidth() }} className="h-full overflow-hidden p-2">
+            <div style={{ width: getMainPanelWidth('abi') }} className="h-full overflow-hidden p-2">
               <ABIView 
                 projectId={project.id} 
                 key={refreshABITrigger}
@@ -555,11 +768,14 @@ export function EditorPage() {
         </div>
 
         {hasConsole && (
-          <div className={cn("border-t overflow-hidden p-2", consoleHeight)}>
-            <CompilerView 
+          <div className="h-[300px] min-h-[200px] max-h-[400px] overflow-hidden p-2">
+            <Terminal 
+              ref={terminalRef}
               result={lastCompilationResult}
               isCompiling={isCompiling}
               projectId={project.id}
+              userId={user?.id}
+              onCommandComplete={handleCommandComplete}
             />
           </div>
         )}

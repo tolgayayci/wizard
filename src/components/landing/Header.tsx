@@ -3,7 +3,7 @@ import { Wand2, Github, ExternalLink, RocketIcon } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { SignInDialog } from './SignInDialog';
+import { AuthModal } from '@/components/auth/AuthModal';
 
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -18,7 +18,7 @@ export function Header() {
   }, []);
 
   const handleLaunchClick = () => {
-    const trigger = document.querySelector<HTMLButtonElement>('[data-signin-trigger]');
+    const trigger = document.querySelector<HTMLButtonElement>('[data-auth-trigger]');
     if (trigger) {
       trigger.click();
     }
@@ -103,8 +103,15 @@ export function Header() {
         </div>
       </div>
       
-      {/* Hidden SignInDialog component */}
-      <SignInDialog />
+      {/* Auth Modal */}
+      <AuthModal>
+        <Button 
+          className="group relative overflow-hidden h-10 px-6 opacity-0 pointer-events-none"
+          data-auth-trigger
+        >
+          Hidden
+        </Button>
+      </AuthModal>
     </header>
   );
 }

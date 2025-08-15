@@ -4,11 +4,9 @@ import {
   LogOut,
   User as UserIcon,
   ShieldCheck,
-  KeyRound,
-  EyeIcon,
-  EyeOffIcon,
-  AlertCircle,
-  CheckCircle,
+  Link,
+  Github,
+  Mail,
   Bug,
 } from 'lucide-react';
 
@@ -31,50 +29,19 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Input } from '@/components/ui/input';
-import { signOut } from '@/lib/auth';
+import { signOut, linkIdentity } from '@/lib/auth';
 import { User } from '@/lib/types';
 import { getCurrentUser } from '@/lib/auth';
 import { ProfileDialog } from '@/components/ProfileDialog';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
-
-// Password validation schema
-const PASSWORD_REQUIREMENTS = [
-  { 
-    label: "At least 8 characters long", 
-    test: (password: string) => password.length >= 8 
-  },
-  { 
-    label: "Contains at least one uppercase letter", 
-    test: (password: string) => /[A-Z]/.test(password) 
-  },
-  { 
-    label: "Contains at least one lowercase letter", 
-    test: (password: string) => /[a-z]/.test(password) 
-  },
-  { 
-    label: "Contains at least one number", 
-    test: (password: string) => /\d/.test(password) 
-  },
-  { 
-    label: "Contains at least one special character", 
-    test: (password: string) => /[!@#$%^&*(),.?":{}|<>]/.test(password) 
-  }
-];
 
 export function UserNav() {
   const [user, setUser] = useState<User | null>(null);
   const [showProfileDialog, setShowProfileDialog] = useState(false);
-  const [showSecurityDialog, setShowSecurityDialog] = useState(false);
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -95,68 +62,39 @@ export function UserNav() {
     }
   };
 
-  const validatePassword = (password: string) => {
-    return PASSWORD_REQUIREMENTS.every(req => req.test(password));
+  const fetchLinkedAccounts = async () => {
+    if (!user) return;
+    
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.identities) {
+        setLinkedAccounts(authUser.identities);
+      }
+    } catch (error) {
+      console.error('Error fetching linked accounts:', error);
+    }
   };
 
-  const handlePasswordChange = async () => {
-    // Reset any previous errors
-    if (!currentPassword) {
-      toast({
-        title: "Error",
-        description: "Please enter your current password",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleAccountDialogOpen = () => {
+    setShowAccountDialog(true);
+    fetchLinkedAccounts();
+  };
 
-    if (!newPassword) {
-      toast({
-        title: "Error",
-        description: "Please enter a new password",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!validatePassword(newPassword)) {
-      toast({
-        title: "Error",
-        description: "Password does not meet security requirements",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast({
-        title: "Error",
-        description: "New passwords don't match",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
+  const handleLinkGitHub = async () => {
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
-
-      if (error) throw error;
-
+      setIsLoading(true);
+      await linkIdentity('github');
       toast({
-        title: "Success",
-        description: "Password updated successfully",
+        title: "GitHub account linked!",
+        description: "Your GitHub account has been successfully linked.",
       });
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowSecurityDialog(false);
+      // Refresh linked accounts
+      fetchLinkedAccounts();
     } catch (error) {
+      console.error('GitHub linking error:', error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update password",
+        description: error instanceof Error ? error.message : "Failed to link GitHub account",
         variant: "destructive",
       });
     } finally {
@@ -199,9 +137,9 @@ export function UserNav() {
               <UserIcon className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setShowSecurityDialog(true)}>
-              <ShieldCheck className="mr-2 h-4 w-4" />
-              Security
+            <DropdownMenuItem onClick={handleAccountDialogOpen}>
+              <Link className="mr-2 h-4 w-4" />
+              Linked Accounts
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleReportIssue}>
               <Bug className="mr-2 h-4 w-4" />
@@ -223,124 +161,101 @@ export function UserNav() {
         onUserUpdate={setUser}
       />
 
-      <Dialog open={showSecurityDialog} onOpenChange={setShowSecurityDialog}>
+      <Dialog open={showAccountDialog} onOpenChange={setShowAccountDialog}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5" />
-              Change Password
+              <Link className="h-5 w-5" />
+              Linked Accounts
             </DialogTitle>
             <DialogDescription>
-              Update your account password to keep your account secure.
+              Manage the accounts you use to sign in to Wizard.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-6 py-4">
-            {/* Password Requirements */}
-            <div className="space-y-2">
-              <div className="text-sm font-medium">Password Requirements</div>
-              <div className="space-y-2 text-sm">
-                {PASSWORD_REQUIREMENTS.map((req, index) => (
-                  <div 
-                    key={index} 
-                    className="flex items-center gap-2"
-                  >
-                    {req.test(newPassword) ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                    <span className={cn(
-                      "text-muted-foreground",
-                      req.test(newPassword) && "text-green-500"
-                    )}>
-                      {req.label}
-                    </span>
+          <div className="space-y-4 py-4">
+            {linkedAccounts.length > 0 ? (
+              <div className="space-y-3">
+                {linkedAccounts.map((identity, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {identity.provider === 'github' ? (
+                        <Github className="h-5 w-5" />
+                      ) : identity.provider === 'email' ? (
+                        <Mail className="h-5 w-5" />
+                      ) : (
+                        <ShieldCheck className="h-5 w-5" />
+                      )}
+                      <div>
+                        <div className="font-medium capitalize">
+                          {identity.provider === 'email' ? 'Magic Link' : identity.provider}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {identity.identity_data?.email || user?.email}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-green-500 bg-green-500/10 px-2 py-1 rounded">
+                      Connected
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Current Password</label>
-                <div className="relative">
-                  <Input
-                    type={showCurrentPassword ? "text" : "password"}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  >
-                    {showCurrentPassword ? (
-                      <EyeOffIcon className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <EyeIcon className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
+            ) : (
+              <div className="text-center py-6">
+                <div className="text-muted-foreground mb-2">No linked accounts found</div>
+                <div className="text-sm text-muted-foreground">
+                  Your account information is being loaded...
                 </div>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">New Password</label>
-                <div className="relative">
-                  <Input
-                    type={showNewPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                  >
-                    {showNewPassword ? (
-                      <EyeOffIcon className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <EyeIcon className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
+            {/* Available accounts to link */}
+            {linkedAccounts.length > 0 && !linkedAccounts.some(acc => acc.provider === 'github') && (
+              <div className="pt-4 border-t">
+                <div className="text-sm font-medium mb-3">Available to Link</div>
+                <div className="p-3 border rounded-lg border-dashed">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Github className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <div className="font-medium">GitHub</div>
+                        <div className="text-sm text-muted-foreground">
+                          Link your GitHub account for easy access
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleLinkGitHub}
+                      disabled={isLoading}
+                      className="ml-2"
+                    >
+                      {isLoading ? (
+                        <>
+                          <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
+                          Linking...
+                        </>
+                      ) : (
+                        <>
+                          <Link className="w-3 h-3 mr-2" />
+                          Link
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Confirm New Password</label>
-                <div className="relative">
-                  <Input
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={cn(
-                      "pr-10",
-                      confirmPassword && newPassword !== confirmPassword && "border-red-500"
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOffIcon className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <EyeIcon className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
-                </div>
-                {confirmPassword && newPassword !== confirmPassword && (
-                  <p className="text-xs text-red-500">Passwords don't match</p>
-                )}
+            <div className="pt-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                <div className="font-medium mb-2">About Account Linking</div>
+                <ul className="space-y-1 text-xs">
+                  <li>• You can sign in using any of your linked accounts</li>
+                  <li>• All linked accounts share the same projects and data</li>
+                  <li>• Magic link authentication is passwordless and secure</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -348,16 +263,9 @@ export function UserNav() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setShowSecurityDialog(false)}
-              disabled={isLoading}
+              onClick={() => setShowAccountDialog(false)}
             >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handlePasswordChange}
-              disabled={isLoading || !validatePassword(newPassword) || newPassword !== confirmPassword}
-            >
-              {isLoading ? "Updating..." : "Update Password"}
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

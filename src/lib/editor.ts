@@ -31,8 +31,112 @@ export const rustLanguageConfig: monaco.languages.LanguageConfiguration = {
   },
 };
 
+// TOML language configuration
+export const tomlLanguageConfig: monaco.languages.LanguageConfiguration = {
+  comments: {
+    lineComment: '#',
+  },
+  brackets: [
+    ['[', ']'],
+    ['{', '}'],
+  ],
+  autoClosingPairs: [
+    { open: '[', close: ']' },
+    { open: '{', close: '}' },
+    { open: '"', close: '"' },
+    { open: "'", close: "'" },
+  ],
+  surroundingPairs: [
+    { open: '[', close: ']' },
+    { open: '{', close: '}' },
+    { open: '"', close: '"' },
+    { open: "'", close: "'" },
+  ],
+};
+
 // Initialize Monaco editor with Rust and Stylus SDK support
 export function initializeMonaco(monaco: typeof import('monaco-editor')) {
+  // Register TOML language
+  if (!monaco.languages.getLanguages().some(lang => lang.id === 'toml')) {
+    monaco.languages.register({ id: 'toml', extensions: ['.toml'] });
+    monaco.languages.setLanguageConfiguration('toml', tomlLanguageConfig);
+    
+    // Register TOML syntax highlighting
+    monaco.languages.setMonarchTokensProvider('toml', {
+      tokenizer: {
+        root: [
+          // Comments
+          [/#.*$/, 'comment'],
+          
+          // Section headers
+          [/^\s*\[([^\]]+)\]/, 'type.identifier'],
+          [/^\s*\[\[([^\]]+)\]\]/, 'type.identifier'],
+          
+          // Keys
+          [/^\s*[a-zA-Z_][a-zA-Z0-9_-]*(?=\s*=)/, 'variable.name'],
+          
+          // Strings
+          [/"([^"\\]|\\.)*"/, 'string'],
+          [/'([^'\\]|\\.)*'/, 'string'],
+          [/"""[\s\S]*?"""/, 'string'],
+          [/'''[\s\S]*?'''/, 'string'],
+          
+          // Numbers
+          [/[+-]?\d+(?:_\d+)*(?:\.\d+(?:_\d+)*)?(?:[eE][+-]?\d+(?:_\d+)*)?/, 'number'],
+          
+          // Booleans
+          [/\b(?:true|false)\b/, 'keyword'],
+          
+          // Dates
+          [/\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?/, 'number.float'],
+        ]
+      }
+    });
+  }
+  
+  // Register Shell/Bash language
+  if (!monaco.languages.getLanguages().some(lang => lang.id === 'shell')) {
+    monaco.languages.register({ id: 'shell', extensions: ['.sh', '.bash'] });
+    
+    // Register Shell syntax highlighting
+    monaco.languages.setMonarchTokensProvider('shell', {
+      tokenizer: {
+        root: [
+          // Shebang
+          [/^#!.*$/, 'comment.shebang'],
+          
+          // Comments
+          [/#.*$/, 'comment'],
+          
+          // Variables
+          [/\$[a-zA-Z_]\w*/, 'variable'],
+          [/\$\{[^}]+\}/, 'variable'],
+          [/\$\([^)]+\)/, 'variable.substitution'],
+          
+          // Keywords
+          [/\b(?:if|then|else|elif|fi|for|while|do|done|case|esac|function|return|in|break|continue|shift|exit|export|readonly|declare|typeset|local|unset)\b/, 'keyword'],
+          
+          // Built-in commands
+          [/\b(?:echo|cd|pwd|ls|cp|mv|rm|mkdir|rmdir|touch|cat|grep|sed|awk|cut|sort|uniq|head|tail|find|xargs|chmod|chown|chgrp|tar|gzip|gunzip|zip|unzip|curl|wget|ssh|scp|rsync|git|docker|npm|yarn|node|python|pip|cargo|rustc)\b/, 'support.function'],
+          
+          // Strings
+          [/"([^"\\]|\\.)*"/, 'string'],
+          [/'([^'\\]|\\.)*'/, 'string'],
+          [/`([^`\\]|\\.)*`/, 'string.backtick'],
+          
+          // Numbers
+          [/\b\d+\b/, 'number'],
+          
+          // Operators
+          [/[<>]=?|[!=]=?|--?|\+\+?|&&|\|\||::|[?:~]/, 'operator'],
+          
+          // Punctuation
+          [/[{}()\[\];,.]/, 'punctuation'],
+        ]
+      }
+    });
+  }
+  
   // Register Rust language if not already registered
   if (!monaco.languages.getLanguages().some(lang => lang.id === 'rust')) {
     monaco.languages.register({ id: 'rust' });

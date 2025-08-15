@@ -20,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { ProjectBadge } from '@/components/ui/ProjectBadge';
 import { cn } from '@/lib/utils';
 
 interface ProjectListProps {
@@ -147,9 +148,17 @@ export function ProjectList({
                     <div className="p-2 rounded-md bg-primary/5 group-hover:bg-primary/10">
                       <Code2Icon className="h-4 w-4 text-primary" />
                     </div>
-                    <span className="font-medium group-hover:text-primary truncate">
-                      {project.name}
-                    </span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="font-medium group-hover:text-primary truncate">
+                        {project.name}
+                      </span>
+                      <ProjectBadge 
+                        project={project} 
+                        variant="compact" 
+                        showLink={true}
+                        className="flex-shrink-0"
+                      />
+                    </div>
                   </div>
                 </td>
                 <td className="py-4 px-6">

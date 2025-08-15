@@ -64,7 +64,7 @@ export function SharedProjectPage() {
 
         // Fetch last successful compilation
         const { data: compilations, error: compilationError } = await supabase
-          .from('compilation_history')
+          .from('compilations')
           .select('*')
           .eq('project_id', id)
           .eq('status', 'success')
@@ -75,11 +75,17 @@ export function SharedProjectPage() {
           const lastCompilation = compilations[0];
           setLastCompilation({
             success: true,
-            exit_code: lastCompilation.exit_code,
+            exit_code: lastCompilation.exit_code || 0,
             stdout: lastCompilation.stdout || '',
             stderr: lastCompilation.stderr || '',
-            details: lastCompilation.details || { compilation_time: Date.now() / 1000 },
-            abi: lastCompilation.abi,
+            details: {
+              status: lastCompilation.status,
+              compilation_time: Date.now() / 1000,
+              contract_size: lastCompilation.contract_size,
+              wasm_size: lastCompilation.wasm_size,
+              metadata_hash: lastCompilation.metadata_hash,
+            },
+            abi: lastCompilation.abi_json,
             code_snapshot: lastCompilation.code_snapshot,
           });
         }

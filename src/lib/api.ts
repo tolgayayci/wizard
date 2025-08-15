@@ -4,11 +4,11 @@ import { API_URL } from './config';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: `${API_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${import.meta.env.VITE_API_KEY}`
   },
+  withCredentials: true, // For cookies/session support
 });
 
 interface CompileRequest {
@@ -20,6 +20,18 @@ interface CompileRequest {
 interface DeployRequest {
   user_id: string;
   project_id: string;
+}
+
+interface FormatRequest {
+  user_id: string;
+  project_id: string;
+  file_path?: string;
+}
+
+interface LintRequest {
+  user_id: string;
+  project_id: string;
+  file_path?: string;
 }
 
 interface ApiResponse<T> {
@@ -58,26 +70,32 @@ export async function compileContract(
     const payload: CompileRequest = {
       user_id: userId,
       project_id: projectId,
-      code,
     };
 
-    const { data: response } = await api.post<ApiResponse<CompileResponse>>('/compile', payload);
+    // Use local compilation endpoint
+    const { data: response } = await api.post<ApiResponse<any>>('/local/compile', payload);
 
     if (!response.success || !response.data) {
       throw new Error(response.error?.message || 'Compilation failed');
     }
 
+    // Handle local compiler response format
+    const localResult = response.data;
+    
     return {
-      success: response.data.success,
-      exit_code: response.data.exit_code,
-      stdout: response.data.stdout,
-      stderr: response.data.stderr,
+      success: localResult.success,
+      exit_code: localResult.success ? 0 : 1,
+      stdout: localResult.output || '',
+      stderr: localResult.errors ? localResult.errors.join('\n') : '',
       details: {
-        status: response.data.details.status,
-        compilation_time: response.data.details.compilation_time,
-        project_path: response.data.details.project_path,
+        status: localResult.success ? 'success' : 'failed',
+        compilation_time: 0,
+        project_path: '',
+        contract_size: localResult.contract_size,
+        wasm_size: localResult.wasm_size,
+        metadata_hash: localResult.metadata_hash,
       },
-      abi: response.data.abi || [],
+      abi: localResult.abi ? JSON.parse(localResult.abi) : [],
       code_snapshot: code,
     };
   } catch (error) {
@@ -119,5 +137,160 @@ export async function deployContract(
     throw error instanceof Error 
       ? error 
       : new Error('Failed to deploy contract');
+  }
+}
+
+/**
+ * Initialize project filesystem on backend
+ * This creates the actual project files and directory structure
+ */
+export async function initializeProjectFilesystem(
+  projectId: string,
+  userId: string,
+  projectName: string,
+  code: string,
+  dependencies?: string[]
+): Promise<{ success: boolean; message: string }> {
+  console.log('[API] Initializing project filesystem:', {
+    projectId,
+    userId,
+    projectName,
+    codeLength: code.length,
+    dependencies
+  });
+  
+  try {
+    const payload = {
+      project_id: projectId,
+      user_id: userId,
+      project_name: projectName.toLowerCase().replace(/[^a-z0-9-]/g, '_'),
+      code,
+      dependencies,
+    };
+    
+    console.log('[API] Sending request to /projects/initialize with payload:', payload);
+    
+    const response = await api.post('/projects/initialize', payload);
+    
+    console.log('[API] Response from backend:', response.data);
+
+    if (!response.data.success) {
+      throw new Error(response.data.error?.message || response.data.message || 'Failed to initialize project');
+    }
+
+    return {
+      success: true,
+      message: response.data.message || 'Project initialized successfully',
+    };
+  } catch (error) {
+    console.error('[API] Failed to initialize project filesystem:', error);
+    if (axios.isAxiosError(error)) {
+      console.error('[API] Axios error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      if (error.response?.data) {
+        const apiError = error.response.data as ApiResponse<any>;
+        return {
+          success: false,
+          message: apiError.error?.message || 'Failed to initialize project',
+        };
+      }
+    }
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to initialize project',
+    };
+  }
+}
+
+// Types for formatting and linting
+export interface FormatResult {
+  success: boolean;
+  formatted_code?: string;
+  output: string;
+  errors: string[];
+}
+
+export interface LintIssue {
+  level: string; // "error", "warning", "info", "hint"
+  message: string;
+  line?: number;
+  column?: number;
+  code?: string; // Clippy lint code like "clippy::redundant_closure"
+  suggestion?: string;
+}
+
+export interface LintResult {
+  success: boolean;
+  issues: LintIssue[];
+  output: string;
+  errors: string[];
+}
+
+/**
+ * Format code using rustfmt
+ */
+export async function formatCode(
+  userId: string,
+  projectId: string,
+  filePath?: string
+): Promise<FormatResult> {
+  try {
+    const payload: FormatRequest = {
+      user_id: userId,
+      project_id: projectId,
+      file_path: filePath,
+    };
+
+    const { data: response } = await api.post<ApiResponse<FormatResult>>('/format', payload);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Formatting failed');
+    }
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.data) {
+      const apiError = error.response.data as ApiResponse<any>;
+      throw new Error(apiError.error?.message || 'Failed to format code');
+    }
+    throw error instanceof Error 
+      ? error 
+      : new Error('Failed to format code');
+  }
+}
+
+/**
+ * Lint code using clippy
+ */
+export async function lintCode(
+  userId: string,
+  projectId: string,
+  filePath?: string
+): Promise<LintResult> {
+  try {
+    const payload: LintRequest = {
+      user_id: userId,
+      project_id: projectId,
+      file_path: filePath,
+    };
+
+    const { data: response } = await api.post<ApiResponse<LintResult>>('/lint', payload);
+
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message || 'Linting failed');
+    }
+
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.data) {
+      const apiError = error.response.data as ApiResponse<any>;
+      throw new Error(apiError.error?.message || 'Failed to lint code');
+    }
+    throw error instanceof Error 
+      ? error 
+      : new Error('Failed to lint code');
   }
 }

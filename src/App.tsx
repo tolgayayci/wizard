@@ -6,6 +6,10 @@ import { LandingPage } from '@/pages/LandingPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
 import { EditorPage } from '@/pages/EditorPage';
 import { SharedProjectPage } from '@/pages/SharedProjectPage';
+import { TryOnWizardPage } from '@/pages/TryOnWizardPage';
+import { EmbedGeneratorPage } from '@/pages/EmbedGeneratorPage';
+import { CompilationsPage } from '@/pages/CompilationsPage';
+import { AuthCallback } from '@/pages/auth/AuthCallback';
 import { GAPageView } from '@/components/analytics/GAPageView';
 import { initGA } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
@@ -70,7 +74,10 @@ export function App() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const isPublicRoute = location.pathname === '/';
+  const isPublicRoute = location.pathname === '/' || 
+                       (location.pathname.startsWith('/projects/') && location.pathname.endsWith('/shared')) ||
+                       location.pathname.startsWith('/tryonwizard/') ||
+                       location.pathname.startsWith('/auth/');
 
   useEffect(() => {
     // Initialize GA on public routes
@@ -93,14 +100,45 @@ export function App() {
     checkInitialAuth();
 
     // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const isAuthed = !!session?.user;
       setIsAuthenticated(isAuthed);
 
-      // Only navigate on sign in/out if we're on the landing page
+      // Check for pending GitHub linking after successful sign-in
+      if (event === 'SIGNED_IN' && isAuthed && session?.user) {
+        const pendingGitHubLink = localStorage.getItem('pendingGitHubLink');
+        const linkingEmail = localStorage.getItem('linkingEmail');
+        
+        if (pendingGitHubLink === 'true' && linkingEmail && session.user.email === linkingEmail) {
+          console.log('Auto-linking GitHub account after magic link sign-in');
+          
+          // Clear the pending link flags immediately to prevent loops
+          localStorage.removeItem('pendingGitHubLink');
+          localStorage.removeItem('linkingEmail');
+          
+          // Add a small delay to ensure session is fully established
+          setTimeout(async () => {
+            try {
+              // Set a flag to indicate we're in linking mode
+              localStorage.setItem('linkingInProgress', 'true');
+              const { linkIdentity } = await import('./lib/auth');
+              await linkIdentity('github'); // Use linkIdentity instead of signInWithGitHub since user is already signed in
+            } catch (error) {
+              console.error('Auto GitHub linking failed:', error);
+              localStorage.removeItem('linkingInProgress');
+              // Navigate to projects on failure
+              navigate('/projects', { replace: true });
+            }
+          }, 1000);
+          return; // Don't do normal navigation
+        }
+      }
+
+      // Only navigate on sign in/out if we're on the landing page, but not during auth callback processing
+      // Also don't navigate if we're on the TryOnWizard page
       if (event === 'SIGNED_IN' && isAuthed && location.pathname === '/') {
         navigate('/projects', { replace: true });
-      } else if (event === 'SIGNED_OUT') {
+      } else if (event === 'SIGNED_OUT' && !location.pathname.startsWith('/auth/') && !location.pathname.startsWith('/tryonwizard/')) {
         navigate('/', { replace: true });
       }
     });
@@ -122,8 +160,9 @@ export function App() {
     );
   }
 
-  // Redirect authenticated users to projects page if they try to access public routes
-  if (isAuthenticated && isPublicRoute) {
+  // Redirect authenticated users to projects page if they try to access landing page only
+  // Don't redirect from tryonwizard or auth callback pages
+  if (isAuthenticated && location.pathname === '/') {
     return <Navigate to="/projects" replace />;
   }
 
@@ -135,6 +174,8 @@ export function App() {
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/projects/:id/shared" element={<SharedProjectPage />} />
+        <Route path="/tryonwizard/:encodedData" element={<TryOnWizardPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
         {/* Protected routes */}
         <Route path="/projects" element={
@@ -145,6 +186,16 @@ export function App() {
         <Route path="/projects/:id" element={
           <PrivateRoute>
             <EditorPage />
+          </PrivateRoute>
+        } />
+        <Route path="/projects/:id/compilations" element={
+          <PrivateRoute>
+            <CompilationsPage />
+          </PrivateRoute>
+        } />
+        <Route path="/embed/generator" element={
+          <PrivateRoute>
+            <EmbedGeneratorPage />
           </PrivateRoute>
         } />
 

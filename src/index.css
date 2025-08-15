@@ -65,11 +65,11 @@
   }
   
   html {
-    @apply overflow-y-scroll;
+    @apply h-full overflow-hidden;
   }
   
   body {
-    @apply bg-background text-foreground m-0 min-h-screen w-full;
+    @apply bg-background text-foreground m-0 h-full w-full overflow-hidden;
   }
   
   /* Prevent content shift when modal opens */
@@ -78,7 +78,7 @@
   }
   
   #root {
-    @apply min-h-screen w-full;
+    @apply h-full w-full overflow-hidden;
   }
 
   /* Custom scrollbar styles */
@@ -92,5 +92,48 @@
 
   ::-webkit-scrollbar-thumb {
     @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/30 transition-colors;
+  }
+
+  /* xterm.js terminal constraints */
+  .xterm {
+    height: 100%;
+    width: 100%;
+  }
+
+  .xterm-viewport {
+    overflow-y: auto !important;
+  }
+
+  .xterm-screen {
+    height: 100%;
+  }
+
+  /* Enable text selection in terminal */
+  .xterm-selection-layer {
+    pointer-events: none;
+  }
+
+  .xterm-rows {
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+  }
+
+  /* Terminal selection styling backup */
+  .xterm-selection {
+    overflow: hidden;
+    position: absolute;
+    opacity: 0.3;
+  }
+
+  /* Fallback selection colors for different themes */
+  .dark .xterm-selection {
+    background-color: #3b82f6 !important;
+  }
+
+  .light .xterm-selection,
+  :root .xterm-selection {
+    background-color: #2563eb !important;
   }
 }

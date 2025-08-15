@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import MonacoEditor from "@monaco-editor/react";
 import { EditorHeader } from './editor/EditorHeader';
 import { DeployDialog } from './editor/DeployDialog';
+import { AbiDownloadModal } from './modals/AbiDownloadModal';
+import { WasmAnalysisModal } from './modals/WasmAnalysisModal';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +13,9 @@ import {
   defineEditorTheme, 
   defaultEditorOptions 
 } from '@/lib/editor';
+import { formatCode, lintCode, LintResult, LintIssue } from '@/lib/api';
+import axios from 'axios';
+import { API_URL } from '@/lib/config';
 
 interface EditorProps {
   value: string;
@@ -23,6 +28,7 @@ interface EditorProps {
   onDeploySuccess?: () => void;
   onSave?: () => void;
   isSharedView?: boolean;
+  currentFile?: string | null;
 }
 
 export function Editor({ 
@@ -36,14 +42,50 @@ export function Editor({
   onDeploySuccess,
   onSave,
   isSharedView = false,
+  currentFile,
 }: EditorProps) {
   const [isSaving, setIsSaving] = useState(false);
+  const [isFormatting, setIsFormatting] = useState(false);
+  const [isLinting, setIsLinting] = useState(false);
   const [showDeployDialog, setShowDeployDialog] = useState(false);
   const [showABIError, setShowABIError] = useState(false);
+  const [showAbiDownloadModal, setShowAbiDownloadModal] = useState(false);
+  const [showWasmAnalysisModal, setShowWasmAnalysisModal] = useState(false);
+  const [lintIssues, setLintIssues] = useState<LintIssue[]>([]);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const { theme, systemTheme } = useTheme();
   const { toast } = useToast();
+  
+  // Determine language based on file extension
+  const getLanguageFromFile = (filename: string | null | undefined): string => {
+    if (!filename) return 'rust';
+    
+    const extension = filename.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'rs':
+        return 'rust';
+      case 'toml':
+        return 'toml'; // Custom TOML language support with syntax highlighting
+      case 'sh':
+        return 'shell';
+      case 'bash':
+        return 'shell';
+      case 'md':
+        return 'markdown';
+      case 'json':
+        return 'json';
+      case 'yaml':
+      case 'yml':
+        return 'yaml';
+      case 'txt':
+        return 'plaintext';
+      default:
+        return 'rust';
+    }
+  };
+  
+  const editorLanguage = getLanguageFromFile(currentFile);
 
   // Get the effective theme (system or user preference)
   const effectiveTheme = theme === 'system' ? systemTheme : theme;
@@ -57,6 +99,16 @@ export function Editor({
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, handleSave);
   };
+  
+  // Update editor language when file changes
+  useEffect(() => {
+    if (editorRef.current && monacoRef.current) {
+      const model = editorRef.current.getModel();
+      if (model) {
+        monacoRef.current.editor.setModelLanguage(model, editorLanguage);
+      }
+    }
+  }, [currentFile, editorLanguage]);
 
   const handleSave = async () => {
     if (!projectId || !editorRef.current || isSaving || isSharedView) return;
@@ -94,6 +146,89 @@ export function Editor({
     }
   };
 
+  const handleFormat = async () => {
+    if (!projectId || !currentFile || isFormatting || isSharedView) return;
+    
+    setIsFormatting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      const result = await formatCode(user.id, projectId, currentFile);
+      
+      if (result.success && result.formatted_code) {
+        onChange(result.formatted_code);
+        toast({
+          title: "Code formatted",
+          description: "Your code has been formatted successfully",
+        });
+      } else {
+        throw new Error(result.errors.join('\n') || 'Formatting failed');
+      }
+    } catch (error) {
+      console.error('Formatting error:', error);
+      toast({
+        title: "Formatting failed",
+        description: error instanceof Error ? error.message : "Failed to format code",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFormatting(false);
+    }
+  };
+
+  const handleLint = async () => {
+    if (!projectId || !currentFile || isLinting || isSharedView) return;
+    
+    setIsLinting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      const result = await lintCode(user.id, projectId, currentFile);
+      
+      if (result.success) {
+        setLintIssues(result.issues);
+        
+        // Add markers to the editor for lint issues
+        if (editorRef.current && monacoRef.current && result.issues.length > 0) {
+          const model = editorRef.current.getModel();
+          if (model) {
+            const markers = result.issues.map(issue => ({
+              startLineNumber: issue.line || 1,
+              startColumn: issue.column || 1,
+              endLineNumber: issue.line || 1,
+              endColumn: (issue.column || 1) + 10, // Approximate end column
+              message: issue.message,
+              severity: issue.level === 'error' ? 8 : issue.level === 'warning' ? 4 : 1, // Error=8, Warning=4, Info=1
+              source: issue.code || 'clippy',
+            }));
+            monacoRef.current.editor.setModelMarkers(model, 'clippy', markers);
+          }
+        }
+
+        toast({
+          title: result.issues.length === 0 ? "No issues found" : `Found ${result.issues.length} issue(s)`,
+          description: result.issues.length === 0 
+            ? "Your code looks good!" 
+            : "Check the editor for highlighted issues",
+          variant: result.issues.length === 0 ? "default" : "destructive",
+        });
+      } else {
+        throw new Error(result.errors.join('\n') || 'Linting failed');
+      }
+    } catch (error) {
+      console.error('Linting error:', error);
+      toast({
+        title: "Linting failed",
+        description: error instanceof Error ? error.message : "Failed to lint code",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLinting(false);
+    }
+  };
+
   const handleDeployClick = () => {
     // Check if we have a valid ABI from the last compilation
     if (!lastCompilation?.abi || !Array.isArray(lastCompilation.abi) || lastCompilation.abi.length === 0) {
@@ -123,6 +258,64 @@ export function Editor({
     }
   };
 
+  const handleDownloadWasm = async () => {
+    if (!projectId || isSharedView) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      const response = await axios.post(`${API_URL}/api/download/wasm`, {
+        user_id: user.id,
+        project_id: projectId,
+      });
+
+      if (response.data.success) {
+        const { filename, content } = response.data.data;
+        
+        // Convert base64 to blob and download
+        const binaryString = atob(content);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([bytes], { type: 'application/wasm' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "Download Complete",
+          description: `${filename} has been downloaded successfully`,
+        });
+      } else {
+        throw new Error("Failed to download WASM binary");
+      }
+    } catch (error) {
+      console.error('WASM download error:', error);
+      toast({
+        title: "Download Failed",
+        description: error instanceof Error ? error.message : "Failed to download WASM binary",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadAbi = () => {
+    setShowAbiDownloadModal(true);
+  };
+
+  const handleAnalyzeWasm = () => {
+    setShowWasmAnalysisModal(true);
+  };
+
   // Update theme when it changes
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
@@ -137,15 +330,23 @@ export function Editor({
         onCompile={onCompile || (() => {})}
         onDeploy={handleDeployClick}
         onSave={handleSave}
+        onFormat={handleFormat}
+        onLint={handleLint}
+        onDownloadWasm={handleDownloadWasm}
+        onDownloadAbi={handleDownloadAbi}
+        onAnalyzeWasm={handleAnalyzeWasm}
         isCompiling={isCompiling || false}
         isSaving={isSaving}
-        hasSuccessfulCompilation={lastCompilation?.success}
+        isFormatting={isFormatting}
+        isLinting={isLinting}
+        hasSuccessfulCompilation={lastCompilation?.wasm_available || lastCompilation?.success}
         isSharedView={isSharedView}
+        currentFile={currentFile}
       />
       <div className="flex-1 min-h-0 relative">
         <MonacoEditor
           height="100%"
-          defaultLanguage="rust"
+          language={editorLanguage}
           value={value}
           onChange={(value) => onChange(value || '')}
           options={{
@@ -166,7 +367,7 @@ export function Editor({
                     Initializing development environment
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    with Rust language support
+                    with syntax highlighting
                   </p>
                 </div>
               </div>
@@ -175,14 +376,26 @@ export function Editor({
         />
       </div>
       {projectId && !isSharedView && (
-        <DeployDialog
-          open={showDeployDialog}
-          onOpenChange={setShowDeployDialog}
-          projectId={projectId}
-          lastCompilation={lastCompilation}
-          onDeploySuccess={handleDeploySuccess}
-          showABIError={showABIError}
-        />
+        <>
+          <DeployDialog
+            open={showDeployDialog}
+            onOpenChange={setShowDeployDialog}
+            projectId={projectId}
+            lastCompilation={lastCompilation}
+            onDeploySuccess={handleDeploySuccess}
+            showABIError={showABIError}
+          />
+          <AbiDownloadModal
+            open={showAbiDownloadModal}
+            onOpenChange={setShowAbiDownloadModal}
+            projectId={projectId}
+          />
+          <WasmAnalysisModal
+            open={showWasmAnalysisModal}
+            onOpenChange={setShowWasmAnalysisModal}
+            projectId={projectId}
+          />
+        </>
       )}
     </div>
   );

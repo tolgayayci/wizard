@@ -126,6 +126,124 @@ async function ensureUserRecord(userId: string, email: string) {
   }
 }
 
+export async function signInWithMagicLink(email: string) {
+  try {
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: email.toLowerCase().trim(),
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        shouldCreateUser: true,
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Magic link error:', error);
+    throw error instanceof Error ? error : new Error('Failed to send magic link');
+  }
+}
+
+export async function signInWithGitHub() {
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: 'user:email',
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('GitHub auth error:', error);
+    throw error instanceof Error ? error : new Error('Failed to sign in with GitHub');
+  }
+}
+
+export async function linkIdentity(provider: 'github') {
+  try {
+    const { data, error } = await supabase.auth.linkIdentity({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: provider === 'github' ? 'user:email' : undefined,
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Identity linking error:', error);
+    throw error instanceof Error ? error : new Error(`Failed to link ${provider} account`);
+  }
+}
+
+export async function unlinkIdentity(provider: 'github' | 'email') {
+  try {
+    const { data, error } = await supabase.auth.unlinkIdentity({
+      provider,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return { data, error: null };
+  } catch (error) {
+    console.error('Identity unlinking error:', error);
+    throw error instanceof Error ? error : new Error(`Failed to unlink ${provider} account`);
+  }
+}
+
+export async function handleAuthCallback() {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    
+    if (error) {
+      throw error;
+    }
+
+    if (data.session?.user) {
+      // Ensure user record exists
+      await ensureUserRecord(data.session.user.id, data.session.user.email!);
+      
+      // Check if this is a new user (no projects)
+      const { data: projects, error: projectsError } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('user_id', data.session.user.id)
+        .limit(1);
+
+      if (projectsError) {
+        console.error('Error checking projects:', projectsError);
+      }
+
+      // If no projects exist, create initial projects
+      if (!projects || projects.length === 0) {
+        await createInitialProjects(data.session.user.id);
+        return { data, error: null, isNewUser: true };
+      }
+    }
+
+    return { data, error: null, isNewUser: false };
+  } catch (error) {
+    console.error('Auth callback error:', error);
+    throw error instanceof Error ? error : new Error('Authentication failed');
+  }
+}
+
+// Legacy function - deprecated but kept for backward compatibility
 export async function signIn(email: string, password: string) {
   try {
     // First try to sign in

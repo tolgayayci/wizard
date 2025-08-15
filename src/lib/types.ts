@@ -23,4 +23,41 @@ export interface Project {
   shared_at?: string;
   view_count?: number;
   deployment_count?: number;
+  source_url?: string;
+  import_type?: 'template' | 'github' | 'manual';
+  import_metadata?: {
+    files_count?: number;
+    import_date?: string;
+    repository_name?: string;
+    repository_owner?: string;
+    original_description?: string;
+  };
+}
+
+export interface CompilationResult {
+  success: boolean;
+  exit_code: number;
+  stdout: string;
+  stderr: string;
+  details: {
+    status: string;
+    compilation_time: number;
+    project_path?: string;
+    contract_size?: string;
+    wasm_size?: string;
+    metadata_hash?: string;
+  };
+  abi: any[] | null;
+  code_snapshot?: string;
+  wasm_binary?: Uint8Array;
+  wasm_available?: boolean;
+  abi_available?: boolean;
+}
+
+export interface DeploymentResult {
+  success: boolean;
+  contract_address?: string;
+  transaction_hash?: string;
+  stdout: string;
+  stderr: string;
 }
