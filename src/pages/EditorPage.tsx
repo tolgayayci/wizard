@@ -194,7 +194,7 @@ export function EditorPage() {
         setCurrentFileContent(response.data.data.content);
         setSelectedFile(filePath);
         
-        // Update the project code to show the file content
+        // Update the project code to show the file content in editor
         setProject(prev => prev ? { ...prev, code: response.data.data.content } : null);
         
         // File loaded successfully - no need for toast notification
@@ -279,61 +279,53 @@ export function EditorPage() {
   const handleSave = async () => {
     if (!project) return;
     
-    // If a file is selected, save to that file
-    if (selectedFile && user) {
-      try {
-        const response = await axios.post(`${API_URL}/api/filesystem/write`, {
-          user_id: user.id,
-          project_id: project.id,
-          path: selectedFile,
-          content: project.code,
+    // Require a file to be selected for saving
+    if (!selectedFile) {
+      toast({
+        title: 'No file selected',
+        description: 'Please select a file in the explorer before saving',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    if (!user) {
+      toast({
+        title: 'Authentication required',
+        description: 'Please log in to save files',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Save to backend filesystem only
+    try {
+      const response = await axios.post(`${API_URL}/api/filesystem/write`, {
+        user_id: user.id,
+        project_id: project.id,
+        path: selectedFile,
+        content: project.code,
+      });
+      
+      if (response.data.success) {
+        toast({
+          title: 'File saved',
+          description: `Updated ${selectedFile}`,
         });
-        
-        if (response.data.success) {
-          toast({
-            title: 'File saved',
-            description: `Updated ${selectedFile}`,
-          });
-        } else {
-          toast({
-            title: 'Error',
-            description: 'Failed to save file',
-            variant: 'destructive',
-          });
-        }
-      } catch (error) {
-        console.error('Error saving file:', error);
+      } else {
         toast({
           title: 'Error',
-          description: 'Failed to save file',
+          description: response.data.message || 'Failed to save file',
           variant: 'destructive',
         });
       }
-    } else {
-      // Save to project in database
-      try {
-        const { error: saveError } = await supabase
-          .from('projects')
-          .update({ 
-            code: project.code,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', project.id);
-
-        if (saveError) throw saveError;
-        
-        toast({
-          title: 'Project saved',
-          description: 'Code saved to database',
-        });
-      } catch (error) {
-        console.error('Error saving project:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to save project',
-          variant: 'destructive',
-        });
-      }
+    } catch (error) {
+      console.error('Error saving file:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save file',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -343,17 +335,6 @@ export function EditorPage() {
     setIsCompiling(true);
 
     try {
-      // First save the current code
-      const { error: saveError } = await supabase
-        .from('projects')
-        .update({ 
-          code: project.code,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', project.id);
-
-      if (saveError) throw saveError;
-
       // Execute compilation via API with current code
       const response = await axios.post(`${API_URL}/api/local/compile`, {
         user_id: user.id,

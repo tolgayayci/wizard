@@ -7,7 +7,6 @@ interface EditorHeaderProps {
   onDeploy: () => void;
   onSave: () => void;
   onFormat?: () => void;
-  onDownloadWasm?: () => void;
   onDownloadAbi?: () => void;
   onAnalyzeWasm?: () => void;
   isCompiling: boolean;
@@ -24,7 +23,6 @@ export function EditorHeader({
   onDeploy, 
   onSave,
   onFormat,
-  onDownloadWasm,
   onDownloadAbi,
   onAnalyzeWasm,
   isCompiling,
@@ -88,17 +86,17 @@ export function EditorHeader({
           Compile
         </Button>
 
-        {/* Download Section - Only show when successfully compiled */}
+        {/* Analysis and Download Section - Only show when successfully compiled */}
         {hasSuccessfulCompilation && !isSharedView && (
           <>
             <Button
-              onClick={onDownloadWasm}
+              onClick={onAnalyzeWasm}
               variant="outline"
               size="sm"
               className="gap-2 min-w-[110px]"
-              title="Download compiled WASM binary"
+              title="Analyze WASM binary size and optimization"
             >
-              <Download className="h-4 w-4" />
+              <BarChart3 className="h-4 w-4" />
               WASM
             </Button>
             

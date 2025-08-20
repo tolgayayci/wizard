@@ -24,11 +24,12 @@ import { ABICall } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { getExplorerAddressUrl, getExplorerUrlByChainId, BLOCKCHAIN_CONFIG } from '@/lib/config';
+import { getExplorerUrlByChainId, BLOCKCHAIN_CONFIG } from '@/lib/config';
 
 interface ABIExecutionHistoryProps {
   projectId: string;
   deployment?: {
+    id?: string;
     network_info?: {
       chain_id: number;
       explorer_url?: string;
@@ -45,15 +46,26 @@ export function ABIExecutionHistory({ projectId, deployment }: ABIExecutionHisto
 
   useEffect(() => {
     fetchCalls();
-  }, [projectId, sortOrder]);
+  }, [projectId, deployment?.id, sortOrder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCalls = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      
+      // Build the query - filter by deployment_id if available, otherwise by project_id
+      let query = supabase
         .from('abi_calls')
-        .select('*')
-        .eq('project_id', projectId)
+        .select('*');
+      
+      if (deployment?.id) {
+        // Filter by specific deployment
+        query = query.eq('deployment_id', deployment.id);
+      } else {
+        // Fallback to project-level filtering for backward compatibility
+        query = query.eq('project_id', projectId);
+      }
+      
+      const { data, error } = await query
         .order('created_at', { ascending: sortOrder === 'asc' });
 
       if (error) throw error;
@@ -133,10 +145,16 @@ export function ABIExecutionHistory({ projectId, deployment }: ABIExecutionHisto
             <h3 className="font-medium mb-3">No Contract Interactions</h3>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">
-                Start interacting with your deployed contract
+                {deployment?.id 
+                  ? "No interactions recorded for this contract" 
+                  : "Start interacting with your deployed contract"
+                }
               </p>
               <p className="text-sm text-muted-foreground">
-                to see your execution history here
+                {deployment?.id 
+                  ? "Execute methods in the Interface tab to see them here"
+                  : "to see your execution history here"
+                }
               </p>
             </div>
           </div>
@@ -150,6 +168,7 @@ export function ABIExecutionHistory({ projectId, deployment }: ABIExecutionHisto
       <div className="flex-none flex items-center justify-between px-4 py-3 border-b bg-muted/20">
         <div className="text-sm text-muted-foreground">
           {calls.length} {calls.length === 1 ? 'call' : 'calls'} recorded
+          {deployment?.id && " for this contract"}
         </div>
         <Button
           variant="ghost"

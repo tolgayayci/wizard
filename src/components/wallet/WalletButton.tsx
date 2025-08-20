@@ -50,6 +50,7 @@ export function WalletButton() {
             setDeploymentMode(mode);
           }}
           onClose={() => setShowModeModal(false)}
+          currentMode={deploymentMode}
         />
       </>
     );
@@ -63,7 +64,8 @@ export function WalletButton() {
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="gap-2">
               <Zap className="h-4 w-4 text-blue-600" />
-              Wizard Wallet
+              <span>Wizard Wallet</span>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">Superposition Testnet</Badge>
               <ChevronDown className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
@@ -117,14 +119,15 @@ export function WalletButton() {
             <DropdownMenuSeparator />
             
             {/* Switch Mode */}
-            <DropdownMenuItem onClick={() => setShowModeModal(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Switch to Personal Wallet
+            <DropdownMenuItem 
+              onClick={() => setShowModeModal(true)}
+              className="text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 focus:bg-purple-100 dark:focus:bg-purple-900/30"
+            >
+              <Settings className="h-4 w-4 mr-2 text-purple-600 dark:text-purple-400" />
+              Switch to External Wallet
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        
-        <Badge variant="secondary">Testnet</Badge>
         
         <WalletSelectionModal
           open={showModeModal}
@@ -132,6 +135,7 @@ export function WalletButton() {
             setDeploymentMode(mode);
           }}
           onClose={() => setShowModeModal(false)}
+          currentMode={deploymentMode}
         />
       </div>
     );
@@ -156,6 +160,7 @@ export function WalletButton() {
             setDeploymentMode(mode);
           }}
           onClose={() => setShowModeModal(false)}
+          currentMode={deploymentMode}
         />
       </div>
     );

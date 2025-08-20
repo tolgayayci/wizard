@@ -130,23 +130,38 @@ export function Editor({
   const handleSave = async () => {
     if (!projectId || !editorRef.current || isSaving || isSharedView) return;
     
+    // Require a file to be selected for saving
+    if (!currentFile) {
+      toast({
+        title: "No file selected",
+        description: "Please select a file in the explorer before saving",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
       const currentValue = editorRef.current.getValue();
       
-      const { error } = await supabase
-        .from('projects')
-        .update({ 
-          code: currentValue,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', projectId);
+      // Save to backend filesystem instead of database
+      const response = await axios.post(`${API_URL}/api/filesystem/write`, {
+        user_id: user.id,
+        project_id: projectId,
+        path: currentFile,
+        content: currentValue,
+      });
 
-      if (error) throw error;
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to save file');
+      }
 
       toast({
         title: "Changes saved",
-        description: "Your code has been saved successfully",
+        description: `${currentFile} has been saved successfully`,
       });
 
       // Call onSave callback to update parent component
@@ -160,7 +175,7 @@ export function Editor({
       console.error('Error saving:', error);
       toast({
         title: "Save failed",
-        description: "Failed to save your changes. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save your changes. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -312,55 +327,6 @@ export function Editor({
     }
   };
 
-  const handleDownloadWasm = async () => {
-    if (!projectId || isSharedView) return;
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Authentication required");
-
-      const response = await axios.post(`${API_URL}/api/download/wasm`, {
-        user_id: user.id,
-        project_id: projectId,
-      });
-
-      if (response.data.success) {
-        const { filename, content } = response.data.data;
-        
-        // Convert base64 to blob and download
-        const binaryString = atob(content);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        const blob = new Blob([bytes], { type: 'application/wasm' });
-        const url = URL.createObjectURL(blob);
-        
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        toast({
-          title: "Download Complete",
-          description: `${filename} has been downloaded successfully`,
-        });
-      } else {
-        throw new Error("Failed to download WASM binary");
-      }
-    } catch (error) {
-      console.error('WASM download error:', error);
-      toast({
-        title: "Download Failed",
-        description: error instanceof Error ? error.message : "Failed to download WASM binary",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleDownloadAbi = async () => {
     if (!projectId) return;
@@ -439,7 +405,6 @@ export function Editor({
         onDeploy={handleDeployClick}
         onSave={handleSave}
         onFormat={handleFormat}
-        onDownloadWasm={handleDownloadWasm}
         onDownloadAbi={handleDownloadAbi}
         onAnalyzeWasm={handleAnalyzeWasm}
         isCompiling={isCompiling || false}

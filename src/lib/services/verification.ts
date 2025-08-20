@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { API_URL } from '@/lib/config';
 
 interface VerificationRequest {
   contractAddress: string;
@@ -20,87 +21,69 @@ function getArbiscanConfig(chainId: number) {
   switch (chainId) {
     case 42161: // Arbitrum One
       return {
-        apiUrl: 'https://api.arbiscan.io/api',
+        apiUrl: 'https://api.arbiscan.io/v2/api',
         apiKey: import.meta.env.VITE_ARBISCAN_API_KEY,
         explorerUrl: 'https://arbiscan.io',
+        chainId: 42161,
       };
     case 421614: // Arbitrum Sepolia
       return {
-        apiUrl: 'https://api-sepolia.arbiscan.io/api',
+        apiUrl: 'https://api.arbiscan.io/v2/api',
         apiKey: import.meta.env.VITE_ARBISCAN_SEPOLIA_API_KEY,
         explorerUrl: 'https://sepolia.arbiscan.io',
+        chainId: 421614,
       };
     default:
       return null;
   }
 }
 
-// Submit contract for verification on Arbiscan
+// Submit contract for verification via backend API
 export async function verifyContract(request: VerificationRequest): Promise<VerificationResult> {
-  const config = getArbiscanConfig(request.chainId);
-  
-  if (!config) {
-    return {
-      status: 'failed',
-      message: 'Verification not supported for this chain',
-    };
-  }
-
-  if (!config.apiKey || config.apiKey === 'your-arbiscan-api-key' || config.apiKey === 'your-arbiscan-sepolia-api-key') {
-    console.warn('Arbiscan API key not configured. Skipping verification.');
-    return {
-      status: 'failed',
-      message: 'Arbiscan API key not configured',
-    };
-  }
-
   try {
-    // Prepare the verification request
-    const formData = new FormData();
-    formData.append('apikey', config.apiKey);
-    formData.append('module', 'contract');
-    formData.append('action', 'verifysourcecode');
-    formData.append('contractaddress', request.contractAddress);
-    formData.append('sourceCode', request.sourceCode);
-    formData.append('codeformat', 'solidity-single-file'); // For now, using single file format
-    formData.append('contractname', request.contractName);
-    formData.append('compilerversion', request.compilerVersion);
-    formData.append('optimizationUsed', '1'); // Stylus contracts are optimized
-    formData.append('runs', '200');
-    
-    // For Stylus contracts, we need to specify the compiler type
-    // Note: This may need adjustment based on Arbiscan's Stylus support
-    formData.append('evmversion', 'default');
-    formData.append('licenseType', '3'); // MIT license
-
-    // Submit verification request
-    const response = await fetch(config.apiUrl, {
+    const response = await fetch(`${API_URL}/api/verification/verify`, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contract_address: request.contractAddress,
+        source_code: request.sourceCode,
+        contract_name: request.contractName,
+        compiler_version: request.compilerVersion,
+        chain_id: request.chainId,
+      }),
     });
 
     const data = await response.json();
 
-    if (data.status === '1' && data.result) {
-      // Verification request submitted successfully
-      // Now we need to check the status
-      const guid = data.result;
+    if (data.success && data.data) {
+      const result = data.data;
       
-      // Wait a bit before checking status
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // Check verification status
-      const statusResult = await checkVerificationStatus(guid, request.chainId);
+      // If we got a GUID, wait and check status
+      if (result.guid && result.status === 'pending') {
+        // Wait a bit before checking status
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Check verification status
+        const statusResult = await checkVerificationStatus(result.guid, request.chainId);
+        
+        return {
+          status: statusResult.verified ? 'verified' : 'pending',
+          guid: result.guid,
+          message: statusResult.message || 'Verification submitted successfully',
+        };
+      }
       
       return {
-        status: statusResult.verified ? 'verified' : 'pending',
-        guid: guid,
-        message: statusResult.message || 'Verification submitted successfully',
+        status: result.status,
+        guid: result.guid,
+        message: result.message,
       };
     } else {
       return {
         status: 'failed',
-        message: data.result || 'Verification failed',
+        message: data.message || 'Verification failed',
       };
     }
   } catch (error) {
@@ -112,34 +95,33 @@ export async function verifyContract(request: VerificationRequest): Promise<Veri
   }
 }
 
-// Check the status of a verification request
+// Check the status of a verification request via backend API
 export async function checkVerificationStatus(guid: string, chainId: number): Promise<{ verified: boolean; message?: string }> {
-  const config = getArbiscanConfig(chainId);
-  
-  if (!config || !config.apiKey) {
-    return { verified: false, message: 'Configuration not available' };
-  }
-
   try {
-    const params = new URLSearchParams({
-      apikey: config.apiKey,
-      module: 'contract',
-      action: 'checkverifystatus',
-      guid: guid,
+    const response = await fetch(`${API_URL}/api/verification/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        guid: guid,
+        chain_id: chainId,
+      }),
     });
 
-    const response = await fetch(`${config.apiUrl}?${params}`);
     const data = await response.json();
 
-    if (data.status === '1') {
-      // Verification successful
-      return { verified: true, message: 'Contract verified successfully' };
-    } else if (data.result && data.result.includes('Pending')) {
-      // Still pending
-      return { verified: false, message: 'Verification pending' };
+    if (data.success && data.data) {
+      const result = data.data;
+      return {
+        verified: result.status === 'verified',
+        message: result.message,
+      };
     } else {
-      // Failed or other status
-      return { verified: false, message: data.result || 'Verification failed' };
+      return {
+        verified: false,
+        message: data.message || 'Failed to check verification status',
+      };
     }
   } catch (error) {
     console.error('Error checking verification status:', error);
@@ -155,45 +137,58 @@ export async function verifyStylusContract(
   sourceCode: string,
   contractName: string = 'StylusContract'
 ): Promise<VerificationResult> {
-  // For Stylus contracts, we need to prepare the source differently
-  // The verification process for Stylus is different from Solidity
+  const config = getArbiscanConfig(chainId);
   
-  // Note: Arbiscan may require specific formatting for Stylus contracts
-  // This is a placeholder implementation that may need adjustment
-  // based on Arbiscan's actual Stylus verification API
-  
+  if (!config || !config.apiKey || config.apiKey.includes('your-arbiscan')) {
+    // No API key configured - mark as failed
+    const result: VerificationResult = {
+      status: 'failed',
+      message: 'Arbiscan API key not configured. Add VITE_ARBISCAN_API_KEY and VITE_ARBISCAN_SEPOLIA_API_KEY to your .env file.',
+    };
+    
+    await updateDeploymentVerificationStatus(contractAddress, chainId, result);
+    return result;
+  }
+
+  // Attempt verification using the standard Solidity verification process
+  // This should work for Stylus contracts on Arbiscan with the v2 API
   const verificationRequest: VerificationRequest = {
     contractAddress,
     sourceCode,
     contractName,
-    compilerVersion: 'cargo-stylus-0.5.0', // Default Stylus compiler version
+    compilerVersion: 'v0.8.25+commit.b61c2a91', // Use a standard Solidity compiler version
     chainId,
   };
 
   const result = await verifyContract(verificationRequest);
   
-  // Update the deployment record with verification status
-  if (result.guid) {
-    try {
-      const { error } = await supabase
-        .from('deployments')
-        .update({
-          verification_status: result.status,
-          verification_guid: result.guid,
-          verified_at: result.status === 'verified' ? new Date().toISOString() : null,
-        })
-        .eq('contract_address', contractAddress)
-        .eq('chain_id', chainId);
-        
-      if (error) {
-        console.error('Error updating deployment verification status:', error);
-      }
-    } catch (error) {
-      console.error('Error updating deployment:', error);
-    }
-  }
-  
+  await updateDeploymentVerificationStatus(contractAddress, chainId, result);
   return result;
+}
+
+// Helper function to update deployment verification status
+async function updateDeploymentVerificationStatus(
+  contractAddress: string,
+  chainId: number,
+  result: VerificationResult
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('deployments')
+      .update({
+        verification_status: result.status,
+        verification_guid: result.guid || null,
+        verified_at: result.status === 'verified' ? new Date().toISOString() : null,
+      })
+      .eq('contract_address', contractAddress)
+      .eq('chain_id', chainId);
+      
+    if (error) {
+      console.error('Error updating deployment verification status:', error);
+    }
+  } catch (error) {
+    console.error('Error updating deployment:', error);
+  }
 }
 
 // Get verification URL for a contract

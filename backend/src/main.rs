@@ -81,7 +81,8 @@ async fn main() -> std::io::Result<()> {
                     .configure(api::local_compile::configure)
                     .configure(api::packages::configure)
                     .configure(api::projects::configure)
-                    .configure(api::save_deployment::configure),
+                    .configure(api::save_deployment::configure)
+                    .configure(api::verification::configure),
             )
             .service(
                 web::scope("/ws")

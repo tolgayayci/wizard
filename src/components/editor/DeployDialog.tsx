@@ -65,8 +65,6 @@ export function DeployDialog({
   const [isDeploying, setIsDeploying] = useState(false);
   const [deploymentResult, setDeploymentResult] = useState<DeploymentResult | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'verifying' | 'verified' | 'failed'>('idle');
-  const [verificationMessage, setVerificationMessage] = useState<string>('');
   const { toast } = useToast();
   const { openConnectModal } = useConnectModal();
   const { connector } = useAccount();
@@ -88,8 +86,6 @@ export function DeployDialog({
     if (open) {
       setDeploymentResult(null);
       setIsDeploying(false);
-      setVerificationStatus('idle');
-      setVerificationMessage('');
     }
   }, [open]);
   
@@ -218,101 +214,72 @@ export function DeployDialog({
         description: `Contract deployed successfully${localDeploymentMode === 'user' ? ' with your wallet' : ' using Wizard Wallet'}`,
       });
 
-      // Check if we should verify (only for Arbitrum chains)
+      // Start background verification for Arbitrum chains
       const chainId = localDeploymentMode === 'user' ? selectedNetwork.id : 98985;
       if (chainId === 42161 || chainId === 421614) {
-        // Get project name for verification
-        const { data: project } = await supabase
-          .from('projects')
-          .select('name')
-          .eq('id', projectId)
-          .single();
-
-        // Start verification process
-        setVerificationStatus('verifying');
-        setVerificationMessage('Submitting contract for verification on Arbiscan...');
-        
-        try {
-          const verificationResult = await verifyStylusContract(
-            contractAddress,
-            projectId,
-            chainId,
-            lastCompilation?.code_snapshot || '',
-            project?.name || 'StylusContract'
-          );
-
-          if (verificationResult.status === 'verified') {
-            setVerificationStatus('verified');
-            setVerificationMessage('Contract verified successfully on Arbiscan!');
-            
-            // Update deployment record with verification status
-            if (deploymentRecord?.id) {
-              await supabase
-                .from('deployments')
-                .update({
-                  verification_status: 'verified',
-                  verification_guid: verificationResult.guid,
-                  verified_at: new Date().toISOString(),
-                })
-                .eq('id', deploymentRecord.id);
-            }
+        // Run verification in background without blocking UI
+        setTimeout(async () => {
+          try {
+            // Get project name for verification
+            const { data: project } = await supabase
+              .from('projects')
+              .select('name')
+              .eq('id', projectId)
+              .single();
 
             toast({
-              title: "Contract Verified!",
-              description: (
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-green-500" />
-                  <span>Your contract has been verified on Arbiscan</span>
-                </div>
-              ),
+              title: "Verification Started",
+              description: "Contract verification is running in the background...",
             });
-          } else if (verificationResult.status === 'pending') {
-            setVerificationStatus('verifying');
-            setVerificationMessage('Verification is pending. This may take a few minutes...');
-            
-            // Update deployment record with pending status
-            if (deploymentRecord?.id) {
-              await supabase
-                .from('deployments')
-                .update({
-                  verification_status: 'pending',
-                  verification_guid: verificationResult.guid,
-                })
-                .eq('id', deploymentRecord.id);
+
+            const verificationResult = await verifyStylusContract(
+              contractAddress,
+              projectId,
+              chainId,
+              lastCompilation?.code_snapshot || '',
+              project?.name || 'StylusContract'
+            );
+
+            // Show result via toast
+            if (verificationResult.status === 'verified') {
+              toast({
+                title: "Contract Verified ✅",
+                description: "Your contract has been verified on Arbiscan",
+                action: (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const verificationUrl = getVerificationUrl(contractAddress, chainId);
+                    if (verificationUrl) window.open(verificationUrl, '_blank');
+                  }}>
+                    View on Arbiscan
+                  </Button>
+                ),
+              });
+            } else if (verificationResult.status === 'pending') {
+              toast({
+                title: "Verification Pending 🔄",
+                description: "Contract verification is pending. Check status later.",
+              });
+            } else {
+              toast({
+                title: "Verification Failed ❌",
+                description: verificationResult.message || 'Contract verification failed',
+                variant: "destructive",
+              });
             }
-          } else {
-            setVerificationStatus('failed');
-            setVerificationMessage(verificationResult.message || 'Verification failed');
-            
-            // Update deployment record with failed status
-            if (deploymentRecord?.id) {
-              await supabase
-                .from('deployments')
-                .update({
-                  verification_status: 'failed',
-                })
-                .eq('id', deploymentRecord.id);
-            }
+          } catch (error) {
+            console.error('Background verification error:', error);
+            toast({
+              title: "Verification Error",
+              description: "Failed to verify contract due to an error",
+              variant: "destructive",
+            });
           }
-        } catch (error) {
-          console.error('Verification error:', error);
-          setVerificationStatus('failed');
-          setVerificationMessage('Failed to verify contract. You can verify it manually on Arbiscan.');
-        }
+        }, 1000); // 1 second delay to let deployment complete
       }
 
-      // Delay closing dialog if verification is in progress
-      if (verificationStatus === 'idle') {
-        // No verification needed, close immediately
-        onDeploySuccess?.();
-        onOpenChange(false);
-      } else {
-        // Keep dialog open to show verification status
-        setTimeout(() => {
-          onDeploySuccess?.();
-          onOpenChange(false);
-        }, 3000);
-      }
+      // Close dialog immediately - don't wait for verification
+      onDeploySuccess?.();
+      onOpenChange(false);
     } catch (error: any) {
       console.error('Deployment error:', error);
       
@@ -717,56 +684,6 @@ export function DeployDialog({
               </div>
             )}
 
-            {/* Verification Status */}
-            {verificationStatus !== 'idle' && (
-              <div className={cn(
-                "p-4 rounded-lg border",
-                verificationStatus === 'verifying' && "bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900",
-                verificationStatus === 'verified' && "bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900",
-                verificationStatus === 'failed' && "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900"
-              )}>
-                <div className="flex items-center gap-2 mb-2">
-                  {verificationStatus === 'verifying' && (
-                    <>
-                      <Shield className="h-5 w-5 text-blue-600 animate-pulse" />
-                      <span className="font-medium text-blue-600">Verifying Contract...</span>
-                    </>
-                  )}
-                  {verificationStatus === 'verified' && (
-                    <>
-                      <ShieldCheck className="h-5 w-5 text-green-600" />
-                      <span className="font-medium text-green-600">Contract Verified</span>
-                    </>
-                  )}
-                  {verificationStatus === 'failed' && (
-                    <>
-                      <ShieldX className="h-5 w-5 text-red-600" />
-                      <span className="font-medium text-red-600">Verification Failed</span>
-                    </>
-                  )}
-                </div>
-                
-                <p className="text-sm text-muted-foreground">
-                  {verificationMessage}
-                </p>
-                
-                {verificationStatus === 'verified' && deploymentResult && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="mt-2 p-0 h-auto"
-                    onClick={() => {
-                      const contractAddress = deploymentResult.transaction?.contract_address || deploymentResult.contract_address;
-                      const chainId = localDeploymentMode === 'user' ? selectedNetwork.id : 98985;
-                      const verificationUrl = getVerificationUrl(contractAddress || '', chainId);
-                      if (verificationUrl) window.open(verificationUrl, '_blank');
-                    }}
-                  >
-                    View on Arbiscan <ExternalLink className="h-3 w-3 ml-1" />
-                  </Button>
-                )}
-              </div>
-            )}
           </div>
 
           <DialogFooter>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import {
   Dialog,
@@ -8,6 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +29,8 @@ import {
   Loader2,
   Info,
   Copy,
+  AlertCircle,
+  Network,
 } from 'lucide-react';
 import { ABIMethod } from '@/lib/types';
 import { ABIMethodSignature } from './ABIMethodSignature';
@@ -26,9 +38,8 @@ import { parseValue, formatValue } from '@/lib/contract';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { BLOCKCHAIN_CONFIG, getExplorerUrlByChainId } from '@/lib/config';
-import { useWallet } from '@/contexts/WalletContext';
-import { useAccount, useWalletClient } from 'wagmi';
+import { BLOCKCHAIN_CONFIG, getExplorerUrlByChainId, getNetworkInfo } from '@/lib/config';
+import { useAccount, useWalletClient, useChainId, useSwitchChain } from 'wagmi';
 
 interface ABIExecuteDialogProps {
   open: boolean;
@@ -38,6 +49,7 @@ interface ABIExecuteDialogProps {
   projectId: string;
   onExecute: (result: any) => void;
   deploymentMode?: 'wizard' | 'user';
+  deploymentId?: string;
   networkInfo?: {
     chain_id: number;
     name: string;
@@ -65,17 +77,65 @@ export function ABIExecuteDialog({
   projectId,
   onExecute,
   deploymentMode = 'wizard',
+  deploymentId,
   networkInfo,
 }: ABIExecuteDialogProps) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<ExecutionResult | null>(null);
+  const [showNetworkDialog, setShowNetworkDialog] = useState(false);
+  const [isNetworkSwitched, setIsNetworkSwitched] = useState(false);
   const { toast } = useToast();
-  const { isConnected, address } = useAccount();
+  const { isConnected } = useAccount();
   const { data: walletClient } = useWalletClient();
+  const chainId = useChainId();
+  const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain();
+
+  // Reset network switched flag when dialog opens
+  useEffect(() => {
+    if (open) {
+      setIsNetworkSwitched(false);
+      setResult(null);
+    }
+  }, [open]);
 
   const handleInputChange = (name: string, value: string) => {
     setInputs(prev => ({ ...prev, [name]: value }));
+  };
+
+  const checkNetworkCompatibility = () => {
+    if (deploymentMode === 'user' && networkInfo?.chain_id) {
+      return chainId === networkInfo.chain_id;
+    }
+    return true; // No check needed for wizard deployments
+  };
+
+  const getCurrentNetworkName = () => {
+    const network = getNetworkInfo(chainId);
+    return network.name;
+  };
+
+  const handleNetworkSwitch = async () => {
+    if (!networkInfo?.chain_id) return;
+    
+    try {
+      await switchChain({ chainId: networkInfo.chain_id });
+      setShowNetworkDialog(false);
+      setIsNetworkSwitched(true);
+      toast({
+        title: "Network Switched",
+        description: `Successfully switched to ${networkInfo.name}`,
+      });
+      // Execute the method after successful network switch
+      setTimeout(() => handleExecute(), 100);
+    } catch (error) {
+      console.error('Network switch error:', error);
+      toast({
+        title: "Failed to Switch Network",
+        description: "Please switch network manually in your wallet",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleExecute = async () => {
@@ -89,6 +149,12 @@ export function ABIExecuteDialog({
           description: "Please connect your wallet to interact with this contract",
           variant: "destructive",
         });
+        return;
+      }
+
+      // Check network compatibility for external wallets (only if we haven't already switched)
+      if (!isNetworkSwitched && !checkNetworkCompatibility()) {
+        setShowNetworkDialog(true);
         return;
       }
     }
@@ -153,6 +219,7 @@ export function ABIExecuteDialog({
         .from('abi_calls')
         .insert({
           project_id: projectId,
+          deployment_id: deploymentId,
           contract_address: receipt?.hash || "read-only-call",
           method_name: method.name,
           method_type: method.type,
@@ -180,6 +247,7 @@ export function ABIExecuteDialog({
         .from('abi_calls')
         .insert({
           project_id: projectId,
+          deployment_id: deploymentId,
           contract_address: contractAddress,
           method_name: method.name,
           method_type: method.type,
@@ -208,8 +276,9 @@ export function ABIExecuteDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>Execute {method.name}</span>
@@ -365,6 +434,7 @@ export function ABIExecuteDialog({
           </div>
         </ScrollArea>
 
+
         <DialogFooter className="gap-2 mt-6">
           {deploymentMode === 'user' && !isConnected && (
             <div className="flex-1 text-xs text-yellow-600 dark:text-yellow-400">
@@ -375,7 +445,11 @@ export function ABIExecuteDialog({
             Cancel
           </Button>
           <Button 
-            disabled={isExecuting || (deploymentMode === 'user' && !isConnected)} 
+            disabled={
+              isExecuting || 
+              (deploymentMode === 'user' && !isConnected) ||
+              isSwitchingNetwork
+            } 
             onClick={handleExecute}
             className="gap-2"
           >
@@ -393,6 +467,45 @@ export function ABIExecuteDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+
+      <AlertDialog open={showNetworkDialog} onOpenChange={setShowNetworkDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Network className="h-5 w-5" />
+              Switch Network Required
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This contract is deployed on <strong>{networkInfo?.name}</strong> but your wallet is connected to <strong>{getCurrentNetworkName()}</strong>.
+              <br /><br />
+              Would you like to switch to the correct network and execute the transaction?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowNetworkDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleNetworkSwitch}
+              disabled={isSwitchingNetwork}
+              className="gap-2"
+            >
+              {isSwitchingNetwork ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Switching...
+                </>
+              ) : (
+                <>
+                  <Network className="h-4 w-4" />
+                  Switch to {networkInfo?.name}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

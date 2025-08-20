@@ -2,8 +2,35 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { arbitrum, arbitrumSepolia } from 'wagmi/chains';
 import { Chain } from 'viem';
 
+// Custom Superposition mainnet configuration
+export const superpositionMainnet: Chain = {
+  id: 55244,
+  name: 'Superposition',
+  network: 'superposition',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'Ether',
+    symbol: 'ETH',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.superposition.so'],
+    },
+    public: {
+      http: ['https://rpc.superposition.so'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'Superposition Explorer',
+      url: 'https://explorer.superposition.so',
+    },
+  },
+  testnet: false,
+};
+
 // Custom Superposition testnet configuration
-export const superposition: Chain = {
+export const superpositionTestnet: Chain = {
   id: 98985,
   name: 'Superposition Testnet',
   network: 'superposition-testnet',
@@ -22,23 +49,37 @@ export const superposition: Chain = {
   },
   blockExplorers: {
     default: {
-      name: 'Superposition Explorer',
+      name: 'Superposition Testnet Explorer',
       url: 'https://testnet-explorer.superposition.so',
     },
   },
   testnet: true,
 };
 
+// Backward compatibility alias
+export const superposition = superpositionTestnet;
+
 // Define supported networks
 export const supportedChains: readonly [Chain, ...Chain[]] = [
-  superposition, // Default testnet for Wizard Wallet
+  superpositionTestnet, // Default testnet for Wizard Wallet
+  superpositionMainnet,
   arbitrumSepolia,
   arbitrum,
 ] as const;
 
 // Network configurations for deployment
 export const networkConfigs = {
-  [superposition.id]: {
+  // Superposition Networks
+  [superpositionMainnet.id]: {
+    name: 'Superposition',
+    symbol: 'ETH',
+    explorerUrl: 'https://explorer.superposition.so',
+    rpcUrl: 'https://rpc.superposition.so',
+    isTestnet: false,
+    faucetUrl: null,
+    wizardWalletSupported: true,
+  },
+  [superpositionTestnet.id]: {
     name: 'Superposition Testnet',
     symbol: 'ETH',
     explorerUrl: 'https://testnet-explorer.superposition.so',
@@ -47,15 +88,7 @@ export const networkConfigs = {
     faucetUrl: 'https://faucet.superposition.so',
     wizardWalletSupported: true,
   },
-  [arbitrumSepolia.id]: {
-    name: 'Arbitrum Sepolia',
-    symbol: 'ETH',
-    explorerUrl: 'https://sepolia.arbiscan.io',
-    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
-    isTestnet: true,
-    faucetUrl: 'https://bridge.arbitrum.io',
-    wizardWalletSupported: false,
-  },
+  // Arbitrum Networks  
   [arbitrum.id]: {
     name: 'Arbitrum One',
     symbol: 'ETH',
@@ -63,6 +96,15 @@ export const networkConfigs = {
     rpcUrl: 'https://arb1.arbitrum.io/rpc',
     isTestnet: false,
     faucetUrl: null,
+    wizardWalletSupported: false,
+  },
+  [arbitrumSepolia.id]: {
+    name: 'Arbitrum Sepolia',
+    symbol: 'ETH',
+    explorerUrl: 'https://sepolia.arbiscan.io',
+    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
+    isTestnet: true,
+    faucetUrl: 'https://bridge.arbitrum.io',
     wizardWalletSupported: false,
   },
 } as const;

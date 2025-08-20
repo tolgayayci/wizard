@@ -2,21 +2,22 @@
 export const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
 export const WS_URL = API_URL.replace(/^http/, 'ws');
 
-// Blockchain Configuration
+// Blockchain Configuration (Legacy - use NETWORK_CONFIGS for new code)
 export const BLOCKCHAIN_CONFIG = {
   superposition: {
     rpc: import.meta.env.VITE_SUPERPOSITION_RPC_URL || 'https://testnet-rpc.superposition.so',
     chainId: parseInt(import.meta.env.VITE_SUPERPOSITION_CHAIN_ID) || 98985,
     name: "Superposition Testnet",
     explorerUrl: import.meta.env.VITE_SUPERPOSITION_EXPLORER_URL || 'https://testnet-explorer.superposition.so',
-    currency: 'SPN',
+    currency: 'ETH',
   },
   // Keep arbitrumSepolia for backward compatibility
   arbitrumSepolia: {
-    rpc: import.meta.env.VITE_SUPERPOSITION_RPC_URL || 'https://testnet-rpc.superposition.so',
-    chainId: parseInt(import.meta.env.VITE_SUPERPOSITION_CHAIN_ID) || 98985,
-    name: "Superposition Testnet",
-    explorerUrl: import.meta.env.VITE_SUPERPOSITION_EXPLORER_URL || 'https://testnet-explorer.superposition.so',
+    rpc: 'https://sepolia-rollup.arbitrum.io/rpc',
+    chainId: 421614,
+    name: "Arbitrum Sepolia",
+    explorerUrl: 'https://sepolia.arbiscan.io',
+    currency: 'ETH',
   },
 } as const;
 
@@ -43,20 +44,38 @@ export const SUPABASE_CONFIG = {
 
 // Network configurations for multiple chains
 export const NETWORK_CONFIGS = {
-  421614: {
-    chainId: 421614,
-    name: 'Arbitrum Sepolia',
-    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
-    explorerUrl: 'https://sepolia.arbiscan.io',
+  // Superposition Networks
+  55244: {
+    chainId: 55244,
+    name: 'Superposition',
+    rpcUrl: 'https://rpc.superposition.so',
+    explorerUrl: 'https://explorer.superposition.so',
+    isTestnet: false,
+    currency: 'ETH',
+  },
+  98985: {
+    chainId: 98985,
+    name: 'Superposition Testnet',
+    rpcUrl: 'https://testnet-rpc.superposition.so',
+    explorerUrl: 'https://testnet-explorer.superposition.so',
     isTestnet: true,
     currency: 'ETH',
   },
+  // Arbitrum Networks
   42161: {
     chainId: 42161,
     name: 'Arbitrum One',
     rpcUrl: 'https://arb1.arbitrum.io/rpc',
     explorerUrl: 'https://arbiscan.io',
     isTestnet: false,
+    currency: 'ETH',
+  },
+  421614: {
+    chainId: 421614,
+    name: 'Arbitrum Sepolia',
+    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
+    explorerUrl: 'https://sepolia.arbiscan.io',
+    isTestnet: true,
     currency: 'ETH',
   },
 } as const;

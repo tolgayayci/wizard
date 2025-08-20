@@ -94,11 +94,10 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
     try {
       const isValid = await verifyContract(address);
       setIsContractVerified(isValid);
-      if (!isValid) {
-        setError('Contract not deployed on Superposition Testnet');
-      }
+      // Remove the error message - contracts can be deployed on different networks
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to verify contract');
+      // Only show error for actual verification failures, not network mismatches
+      console.warn('Contract verification failed:', error);
     }
   };
 
@@ -161,40 +160,51 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
         </div>
       </div>
 
+      {/* Contract selector for all tabs */}
+      <ABIContractSelector
+        contractAddress={selectedDeployment?.contract_address || ''}
+        onAddressChange={handleAddressChange}
+        error={error}
+        deployments={deployments}
+        isLoading={isLoading}
+      />
+
       {activeView === 'interface' ? (
-        <>
-          <ABIContractSelector
-            contractAddress={selectedDeployment?.contract_address || ''}
-            onAddressChange={handleAddressChange}
-            error={error}
-            deployments={deployments}
-            isLoading={isLoading}
-          />
-          {selectedDeployment ? (
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-2">
-                {selectedDeployment.abi.map((method, index) => (
-                  <ABIMethodCard
-                    key={index}
-                    method={method}
-                    onExecute={handleExecute}
-                    isContractVerified={!isSharedView}
-                    isSharedView={isSharedView}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
-          ) : (
-            <div className="flex-1">
-              <ABIEmptyState />
+        selectedDeployment ? (
+          <ScrollArea className="flex-1">
+            <div className="p-4 space-y-2">
+              {selectedDeployment.abi.map((method, index) => (
+                <ABIMethodCard
+                  key={index}
+                  method={method}
+                  onExecute={handleExecute}
+                  isContractVerified={!isSharedView}
+                  isSharedView={isSharedView}
+                />
+              ))}
             </div>
-          )}
-        </>
+          </ScrollArea>
+        ) : (
+          <div className="flex-1">
+            <ABIEmptyState />
+          </div>
+        )
       ) : activeView === 'history' ? (
-        <ABIExecutionHistory 
-          projectId={projectId} 
-          deployment={selectedDeployment}
-        />
+        selectedDeployment ? (
+          <ABIExecutionHistory 
+            projectId={projectId} 
+            deployment={selectedDeployment}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center">
+              <Activity className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">
+                Select a deployment to view history
+              </p>
+            </div>
+          </div>
+        )
       ) : (
         selectedDeployment ? (
           <ABIEventMonitor 
@@ -222,6 +232,7 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
           contractAddress={selectedDeployment.contract_address}
           projectId={projectId}
           deploymentMode={selectedDeployment.deployment_mode}
+          deploymentId={selectedDeployment.id}
           networkInfo={selectedDeployment.network_info}
           onExecute={(result) => {
             toast({
