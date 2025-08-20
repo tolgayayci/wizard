@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { ThemeProvider } from 'next-themes';
+import { WagmiProvider } from 'wagmi';
+import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useTheme } from 'next-themes';
 import { Toaster } from '@/components/ui/toaster';
 import { LandingPage } from '@/pages/LandingPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
@@ -8,12 +12,33 @@ import { EditorPage } from '@/pages/EditorPage';
 import { SharedProjectPage } from '@/pages/SharedProjectPage';
 import { TryOnWizardPage } from '@/pages/TryOnWizardPage';
 import { EmbedGeneratorPage } from '@/pages/EmbedGeneratorPage';
-import { CompilationsPage } from '@/pages/CompilationsPage';
 import { AuthCallback } from '@/pages/auth/AuthCallback';
 import { GAPageView } from '@/components/analytics/GAPageView';
 import { initGA } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
 import { User } from '@/lib/types';
+import { wagmiConfig } from '@/lib/wallet/config';
+import { WalletProvider } from '@/contexts/WalletContext';
+
+// Import RainbowKit styles
+import '@rainbow-me/rainbowkit/styles.css';
+
+// Create a client for TanStack Query
+const queryClient = new QueryClient();
+
+// RainbowKit theme wrapper component
+function RainbowKitThemeProvider({ children }: { children: React.ReactNode }) {
+  const { resolvedTheme } = useTheme();
+  
+  return (
+    <RainbowKitProvider
+      theme={resolvedTheme === 'dark' ? darkTheme() : lightTheme()}
+      showRecentTransactions={true}
+    >
+      {children}
+    </RainbowKitProvider>
+  );
+}
 
 // Auth guard component
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -30,17 +55,63 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { data: userData } = await supabase
+        // Try to get user data
+        let { data: userData } = await supabase
           .from('users')
           .select('*')
           .eq('id', authUser.id)
           .single();
 
+        // If no user data exists, create it instead of signing out
         if (!userData) {
-          // If no user data, sign out
-          await supabase.auth.signOut();
-          navigate('/', { replace: true });
-          return;
+          console.log('User record not found, creating...');
+          
+          // Create user record
+          const { data: newUser, error: insertError } = await supabase
+            .from('users')
+            .insert({
+              id: authUser.id,
+              email: authUser.email,
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('Failed to create user record:', insertError);
+            // Only sign out if we can't create the user record
+            // This might be due to RLS policies
+            if (insertError.code === '42501') {
+              console.error('RLS policy violation - user cannot create their own record');
+            }
+            // Don't sign out immediately, give it another try
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Try one more time to get the user data
+            const { data: retryData } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', authUser.id)
+              .single();
+              
+            if (retryData) {
+              userData = retryData;
+            } else {
+              // Only sign out if we really can't get or create user data
+              await supabase.auth.signOut();
+              navigate('/', { replace: true });
+              return;
+            }
+          } else {
+            userData = newUser;
+            
+            // Create initial projects for new user
+            try {
+              const { createInitialProjects } = await import('./lib/auth');
+              await createInitialProjects(authUser.id);
+            } catch (error) {
+              console.error('Failed to create initial projects:', error);
+            }
+          }
         }
 
         setUser(userData);
@@ -168,41 +239,44 @@ export function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      {isPublicRoute && <GAPageView />}
-      
-      <Routes>
-        {/* Public routes */}
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/projects/:id/shared" element={<SharedProjectPage />} />
-        <Route path="/tryonwizard/:encodedData" element={<TryOnWizardPage />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
+      <QueryClientProvider client={queryClient}>
+        <WagmiProvider config={wagmiConfig}>
+          <RainbowKitThemeProvider>
+            <WalletProvider>
+              {isPublicRoute && <GAPageView />}
+              
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/projects/:id/shared" element={<SharedProjectPage />} />
+                <Route path="/tryonwizard/:encodedData" element={<TryOnWizardPage />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
 
-        {/* Protected routes */}
-        <Route path="/projects" element={
-          <PrivateRoute>
-            <ProjectsPage />
-          </PrivateRoute>
-        } />
-        <Route path="/projects/:id" element={
-          <PrivateRoute>
-            <EditorPage />
-          </PrivateRoute>
-        } />
-        <Route path="/projects/:id/compilations" element={
-          <PrivateRoute>
-            <CompilationsPage />
-          </PrivateRoute>
-        } />
-        <Route path="/embed/generator" element={
-          <PrivateRoute>
-            <EmbedGeneratorPage />
-          </PrivateRoute>
-        } />
+                {/* Protected routes */}
+                <Route path="/projects" element={
+                  <PrivateRoute>
+                    <ProjectsPage />
+                  </PrivateRoute>
+                } />
+                <Route path="/projects/:id" element={
+                  <PrivateRoute>
+                    <EditorPage />
+                  </PrivateRoute>
+                } />
+                <Route path="/embed/generator" element={
+                  <PrivateRoute>
+                    <EmbedGeneratorPage />
+                  </PrivateRoute>
+                } />
 
-        {/* Catch all redirect */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <Toaster />
+                {/* Catch all redirect */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+              <Toaster />
+            </WalletProvider>
+          </RainbowKitThemeProvider>
+        </WagmiProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   );
 }

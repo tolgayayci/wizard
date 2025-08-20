@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 const COUNTER_CODE = `// Simple Counter Contract - Perfect for beginners
-// Dependencies: stylus-sdk = "0.6.0"
+// Dependencies: stylus-sdk = "0.9.0"
 
 extern crate alloc;
 

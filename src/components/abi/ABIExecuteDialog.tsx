@@ -26,7 +26,9 @@ import { parseValue, formatValue } from '@/lib/contract';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { BLOCKCHAIN_CONFIG } from '@/lib/config';
+import { BLOCKCHAIN_CONFIG, getExplorerUrlByChainId } from '@/lib/config';
+import { useWallet } from '@/contexts/WalletContext';
+import { useAccount, useWalletClient } from 'wagmi';
 
 interface ABIExecuteDialogProps {
   open: boolean;
@@ -35,6 +37,13 @@ interface ABIExecuteDialogProps {
   contractAddress: string;
   projectId: string;
   onExecute: (result: any) => void;
+  deploymentMode?: 'wizard' | 'user';
+  networkInfo?: {
+    chain_id: number;
+    name: string;
+    rpc_url?: string;
+    explorer_url?: string;
+  };
 }
 
 interface ExecutionResult {
@@ -55,11 +64,15 @@ export function ABIExecuteDialog({
   contractAddress,
   projectId,
   onExecute,
+  deploymentMode = 'wizard',
+  networkInfo,
 }: ABIExecuteDialogProps) {
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const { toast } = useToast();
+  const { isConnected, address } = useAccount();
+  const { data: walletClient } = useWalletClient();
 
   const handleInputChange = (name: string, value: string) => {
     setInputs(prev => ({ ...prev, [name]: value }));
@@ -68,14 +81,36 @@ export function ABIExecuteDialog({
   const handleExecute = async () => {
     if (!method || !contractAddress) return;
 
+    // Check if external wallet is required
+    if (deploymentMode === 'user') {
+      if (!isConnected || !walletClient) {
+        toast({
+          title: "Wallet Required",
+          description: "Please connect your wallet to interact with this contract",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsExecuting(true);
     setResult({ status: 'pending' });
 
     try {
-      // Get provider and wallet
-      const provider = new ethers.JsonRpcProvider(BLOCKCHAIN_CONFIG.arbitrumSepolia.rpc);
-      const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-      const contract = new ethers.Contract(contractAddress, [method], wallet);
+      let contract;
+      
+      if (deploymentMode === 'user' && walletClient) {
+        // Use connected wallet for external deployments
+        const provider = new ethers.BrowserProvider(walletClient);
+        const signer = await provider.getSigner();
+        contract = new ethers.Contract(contractAddress, [method], signer);
+      } else {
+        // Use wizard wallet for wizard deployments
+        const rpcUrl = networkInfo?.rpc_url || BLOCKCHAIN_CONFIG.arbitrumSepolia.rpc;
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+        contract = new ethers.Contract(contractAddress, [method], wallet);
+      }
 
       // Parse input parameters
       const parsedInputs = method.inputs.map(input => 
@@ -191,7 +226,7 @@ export function ABIExecuteDialog({
             <span>Contract:</span>
             <code className="font-mono text-xs">{contractAddress}</code>
             <a
-              href={`https://testnet-explorer.superposition.so/address/${contractAddress}`}
+              href={networkInfo ? getExplorerUrlByChainId(networkInfo.chain_id, 'address', contractAddress) : `${BLOCKCHAIN_CONFIG.arbitrumSepolia.explorerUrl}/address/${contractAddress}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline inline-flex items-center gap-1"
@@ -297,7 +332,7 @@ export function ABIExecuteDialog({
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>Transaction Hash:</span>
                           <a
-                            href={`https://testnet-explorer.superposition.so/tx/${result.txHash}`}
+                            href={networkInfo ? getExplorerUrlByChainId(networkInfo.chain_id, 'tx', result.txHash) : `${BLOCKCHAIN_CONFIG.arbitrumSepolia.explorerUrl}/tx/${result.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-mono hover:underline flex items-center gap-1"
@@ -331,11 +366,16 @@ export function ABIExecuteDialog({
         </ScrollArea>
 
         <DialogFooter className="gap-2 mt-6">
+          {deploymentMode === 'user' && !isConnected && (
+            <div className="flex-1 text-xs text-yellow-600 dark:text-yellow-400">
+              ⚠️ Connect your wallet to execute this method
+            </div>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button 
-            disabled={isExecuting} 
+            disabled={isExecuting || (deploymentMode === 'user' && !isConnected)} 
             onClick={handleExecute}
             className="gap-2"
           >

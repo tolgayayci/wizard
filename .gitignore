@@ -52,6 +52,12 @@ out
 docs/.vitepress/cache
 docs/.vitepress/dist
 
-backend
+# Backend build and temporary files
+backend/target/
+backend/projects/
+backend/.env
+backend/.env.*
+!backend/.env.example
+
 CLAUDE.md
 .claude

@@ -7,7 +7,7 @@ import { Editor } from '@/components/Editor';
 import { useToast } from '@/hooks/use-toast';
 import { Project, CompilationResult } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import { compileContract } from '@/lib/api';
+import { compileContract, initializeProjectFilesystem } from '@/lib/api';
 import { UserNav } from '@/components/UserNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ABIView } from '@/components/views/ABIView';
@@ -19,6 +19,7 @@ import { ProjectBadge } from '@/components/ui/ProjectBadge';
 import { PackageManagerDialog } from '@/components/packages/PackageManagerDialogNew';
 import { FileExplorerView } from '@/components/explorer/FileExplorerView';
 import { Terminal, TerminalRef } from '@/components/views/Terminal';
+import { WalletButton } from '@/components/wallet/WalletButton';
 import axios from 'axios';
 import { API_URL } from '@/lib/config';
 
@@ -93,6 +94,25 @@ export function EditorPage() {
 
         setProject(project);
         setEditedName(project.name);
+
+        // Initialize project filesystem on backend
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          try {
+            console.log('[EditorPage] Initializing project filesystem for:', project.id);
+            await initializeProjectFilesystem(
+              project.id,
+              user.id,
+              project.name,
+              project.code,
+              ['stylus-sdk'] // Default dependencies
+            );
+            console.log('[EditorPage] Project filesystem initialized successfully');
+          } catch (initError) {
+            console.error('[EditorPage] Failed to initialize project filesystem:', initError);
+            // Don't throw - allow the page to load even if initialization fails
+          }
+        }
 
         // Fetch last compilation regardless of status
         const { data: compilations, error: compilationError } = await supabase
@@ -334,10 +354,11 @@ export function EditorPage() {
 
       if (saveError) throw saveError;
 
-      // Execute compilation via API
+      // Execute compilation via API with current code
       const response = await axios.post(`${API_URL}/api/local/compile`, {
         user_id: user.id,
         project_id: project.id,
+        code: project.code, // Include the current code
       });
 
       if (response.data.success && response.data.data) {
@@ -356,7 +377,16 @@ export function EditorPage() {
             wasm_size: compilationData.wasm_size,
             metadata_hash: compilationData.metadata_hash,
           },
-          abi: compilationData.abi_json ? JSON.parse(compilationData.abi_json) : [],
+          abi: (() => {
+            try {
+              if (!compilationData.abi_json) return [];
+              if (typeof compilationData.abi_json === 'object') return compilationData.abi_json;
+              return JSON.parse(compilationData.abi_json);
+            } catch (error) {
+              console.warn('Failed to parse ABI JSON:', error);
+              return [];
+            }
+          })(),
           code_snapshot: project.code,
           wasm_available: !!compilationData.wasm,
           abi_available: !!(compilationData.abi_json || compilationData.abi_solidity),
@@ -373,7 +403,16 @@ export function EditorPage() {
           wasm_binary: compilationData.wasm ? btoa(String.fromCharCode.apply(null, compilationData.wasm)) : null,
           wasm_size: compilationData.wasm_size,
           wasm_hash: null, // Will be computed server-side
-          abi_json: compilationData.abi_json ? JSON.parse(compilationData.abi_json) : null,
+          abi_json: (() => {
+            try {
+              if (!compilationData.abi_json) return null;
+              if (typeof compilationData.abi_json === 'object') return compilationData.abi_json;
+              return JSON.parse(compilationData.abi_json);
+            } catch (error) {
+              console.warn('Failed to parse ABI JSON for database:', error);
+              return null;
+            }
+          })(),
           abi_solidity: compilationData.abi_solidity,
           contract_size: compilationData.contract_size,
           metadata_hash: compilationData.metadata_hash,
@@ -400,8 +439,7 @@ export function EditorPage() {
         // Show raw compilation output in terminal
         if (terminalRef.current && compilationData.output) {
           // Display raw cargo stylus check output preserving formatting
-          const rawOutput = compilationData.output.replace(/"/g, '\\"');
-          terminalRef.current.executeCommand(`printf "${rawOutput}"`);
+          terminalRef.current.writeOutput(compilationData.output);
         }
 
         toast({
@@ -412,10 +450,24 @@ export function EditorPage() {
           variant: compilationData.success ? "default" : "destructive",
         });
       } else {
+        // Even if the API request fails, check if there's compilation data with output
+        if (response.data.data && response.data.data.output && terminalRef.current) {
+          terminalRef.current.writeOutput(response.data.data.output);
+        }
         throw new Error(response.data.error?.message || 'Compilation failed');
       }
     } catch (error) {
       console.error('Compilation error:', error);
+      
+      // Try to extract compilation output from axios error response
+      if (terminalRef.current && error instanceof Error) {
+        if ((error as any).response?.data?.data?.output) {
+          terminalRef.current.writeOutput((error as any).response.data.data.output);
+        } else if ((error as any).response?.data?.message) {
+          // Show the error message in terminal if no output
+          terminalRef.current.writeOutput((error as any).response.data.message);
+        }
+      }
       
       // Set failed compilation result
       setLastCompilationResult({
@@ -541,13 +593,13 @@ export function EditorPage() {
       }
     }
     
-    // All three views active: Explorer 14.29% (1/7), Editor 57.14% (4/7), ABI 28.57% (2/7)
+    // All three views active: Explorer 14.29% (1/7), Editor 42.86% (3/7), ABI 42.86% (3/7)
     if (activeCount === 3) {
       switch (viewType) {
         case 'explorer': return '14.29%';
-        case 'editor': return '57.14%';
-        case 'abi': return '28.57%';
-        default: return '28.57%';
+        case 'editor': return '42.86%';
+        case 'abi': return '42.86%';
+        default: return '42.86%';
       }
     }
     
@@ -676,15 +728,10 @@ export function EditorPage() {
 
             {/* Right side - Actions */}
             <div className="flex-1 flex items-center justify-end gap-4">
-              <Button
-                variant="outline"
-                className="h-9 px-3 flex items-center gap-2"
-                onClick={() => navigate(`/projects/${project?.id}/compilations`)}
-                title="View compilation history"
-              >
-                <Clock className="h-[1.2rem] w-[1.2rem]" />
-                <span className="text-sm">History</span>
-              </Button>
+              {/* Wallet connection */}
+              <WalletButton />
+              
+              <div className="h-8 w-px bg-border" />
               
               <Button
                 variant="outline"
@@ -749,6 +796,7 @@ export function EditorPage() {
                 onCompile={handleCompile}
                 isCompiling={isCompiling}
                 projectId={project.id}
+                projectName={project.name}
                 lastCompilation={lastCompilationResult}
                 onDeploySuccess={handleDeploySuccess}
                 onSave={handleSave}
@@ -775,6 +823,7 @@ export function EditorPage() {
               isCompiling={isCompiling}
               projectId={project.id}
               userId={user?.id}
+              projectName={project.name}
               onCommandComplete={handleCommandComplete}
             />
           </div>

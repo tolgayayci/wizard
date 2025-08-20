@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { PlayIcon, RocketIcon, Loader2, Save, Code2, Wand2, Bug, Download, FileDown, BarChart3 } from 'lucide-react';
+import { PlayIcon, RocketIcon, Loader2, Save, Code2, Download, FileDown, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface EditorHeaderProps {
@@ -7,14 +7,13 @@ interface EditorHeaderProps {
   onDeploy: () => void;
   onSave: () => void;
   onFormat?: () => void;
-  onLint?: () => void;
   onDownloadWasm?: () => void;
   onDownloadAbi?: () => void;
   onAnalyzeWasm?: () => void;
   isCompiling: boolean;
   isSaving: boolean;
   isFormatting?: boolean;
-  isLinting?: boolean;
+  isLoadingAbi?: boolean;
   hasSuccessfulCompilation?: boolean;
   isSharedView?: boolean;
   currentFile?: string | null;
@@ -25,14 +24,13 @@ export function EditorHeader({
   onDeploy, 
   onSave,
   onFormat,
-  onLint,
   onDownloadWasm,
   onDownloadAbi,
   onAnalyzeWasm,
   isCompiling,
   isSaving,
   isFormatting = false,
-  isLinting = false,
+  isLoadingAbi = false,
   hasSuccessfulCompilation = false,
   isSharedView = false,
   currentFile,
@@ -65,51 +63,15 @@ export function EditorHeader({
           disabled={isSaving || isSharedView}
           variant="outline"
           size="sm"
-          className="gap-2 min-w-[90px]"
+          className="h-8 w-8 p-0"
+          title={isSaving ? "Saving..." : "Save"}
         >
           {isSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <Save className="h-4 w-4" />
           )}
-          {isSaving ? "Saving..." : "Save"}
         </Button>
-
-        {onFormat && currentFile?.endsWith('.rs') && (
-          <Button
-            onClick={onFormat}
-            disabled={isFormatting || isSaving || isSharedView}
-            variant="outline"
-            size="sm"
-            className="gap-2 min-w-[90px]"
-            title="Format code with rustfmt"
-          >
-            {isFormatting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Wand2 className="h-4 w-4" />
-            )}
-            {isFormatting ? "Formatting..." : "Format"}
-          </Button>
-        )}
-
-        {onLint && currentFile?.endsWith('.rs') && (
-          <Button
-            onClick={onLint}
-            disabled={isLinting || isSaving || isSharedView}
-            variant="outline"
-            size="sm"
-            className="gap-2 min-w-[90px]"
-            title="Lint code with clippy"
-          >
-            {isLinting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Bug className="h-4 w-4" />
-            )}
-            {isLinting ? "Linting..." : "Lint"}
-          </Button>
-        )}
 
         <Button
           onClick={onCompile}
@@ -142,25 +104,20 @@ export function EditorHeader({
             
             <Button
               onClick={onDownloadAbi}
+              disabled={isLoadingAbi}
               variant="outline"
               size="sm"
               className="gap-2 min-w-[90px]"
-              title="Download ABI files"
+              title="View ABI interface"
             >
-              <FileDown className="h-4 w-4" />
-              ABI
+              {isLoadingAbi ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+              {isLoadingAbi ? 'Loading...' : 'ABI'}
             </Button>
             
-            <Button
-              onClick={onAnalyzeWasm}
-              variant="outline"
-              size="sm"
-              className="gap-2 min-w-[110px]"
-              title="Analyze WASM binary for optimization suggestions"
-            >
-              <BarChart3 className="h-4 w-4" />
-              Analyze
-            </Button>
           </>
         )}
 

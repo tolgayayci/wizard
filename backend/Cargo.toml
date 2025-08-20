@@ -1,0 +1,100 @@
+[package]
+name = "wizard-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web framework
+actix-web = "4.5"
+actix-ws = "0.2"
+actix-cors = "0.7"
+
+# Async runtime
+tokio = { version = "1.36", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "json", "uuid", "chrono"] }
+
+# Authentication
+jsonwebtoken = "9.2"
+oauth2 = "4.4"
+reqwest = { version = "0.11", features = ["json"] }
+
+# Utilities
+uuid = { version = "1.7", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dotenv = "0.15"
+env_logger = "0.11"
+log = "0.4"
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Terminal emulation
+portable-pty = "0.8"
+
+# Docker
+bollard = "0.16"
+
+# File system
+notify = "6.1"
+walkdir = "2.4"
+
+# WebSocket
+futures-util = "0.3"
+
+# Security
+argon2 = "0.5"
+rand = "0.8"
+
+# Configuration
+config = "0.14"
+
+# Shell parsing
+shell-words = "1.1"
+
+# URL encoding
+urlencoding = "2.1"
+
+# Hashing
+sha2 = "0.10"
+sha3 = "0.10"
+
+# TOML parsing
+toml_edit = "0.22"
+
+# Base64 encoding/decoding
+base64 = "0.21"
+
+# Hex encoding/decoding
+hex = "0.4"
+
+# Regular expressions
+regex = "1.10"
+
+# Ethereum libraries for testing user wallet deployment
+alloy = { version = "0.8", features = ["full", "node-bindings"] }
+alloy-signer = "0.8"
+alloy-provider = "0.8"
+alloy-contract = "0.8"
+alloy-primitives = "0.8"
+alloy-sol-types = "0.8"
+
+# Stylus WASM processing
+brotli = "3.4"
+brotli2 = "0.3"
+wasmprinter = "0.2"
+wasmer = "4.0"
+wasmparser = "0.118"
+wasm-encoder = "0.38"
+wat = "1.0"
+tempfile = "3.8"
+
+[dev-dependencies]
+actix-rt = "2.9"
+dotenv = "0.15"
+reqwest = { version = "0.11", features = ["json", "blocking"] }
+tokio = { version = "1.36", features = ["full"] }

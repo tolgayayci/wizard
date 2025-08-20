@@ -4,11 +4,19 @@ export const WS_URL = API_URL.replace(/^http/, 'ws');
 
 // Blockchain Configuration
 export const BLOCKCHAIN_CONFIG = {
-  arbitrumSepolia: {
-    rpc: import.meta.env.VITE_ARB_SEPOLIA_RPC_URL,
-    chainId: parseInt(import.meta.env.VITE_ARB_SEPOLIA_CHAIN_ID),
+  superposition: {
+    rpc: import.meta.env.VITE_SUPERPOSITION_RPC_URL || 'https://testnet-rpc.superposition.so',
+    chainId: parseInt(import.meta.env.VITE_SUPERPOSITION_CHAIN_ID) || 98985,
     name: "Superposition Testnet",
-    explorerUrl: import.meta.env.VITE_ARB_SEPOLIA_EXPLORER_URL,
+    explorerUrl: import.meta.env.VITE_SUPERPOSITION_EXPLORER_URL || 'https://testnet-explorer.superposition.so',
+    currency: 'SPN',
+  },
+  // Keep arbitrumSepolia for backward compatibility
+  arbitrumSepolia: {
+    rpc: import.meta.env.VITE_SUPERPOSITION_RPC_URL || 'https://testnet-rpc.superposition.so',
+    chainId: parseInt(import.meta.env.VITE_SUPERPOSITION_CHAIN_ID) || 98985,
+    name: "Superposition Testnet",
+    explorerUrl: import.meta.env.VITE_SUPERPOSITION_EXPLORER_URL || 'https://testnet-explorer.superposition.so',
   },
 } as const;
 
@@ -33,13 +41,56 @@ export const SUPABASE_CONFIG = {
   anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
 } as const;
 
-// Helper function to get explorer URL for transaction
-export function getExplorerTxUrl(txHash: string): string {
+// Network configurations for multiple chains
+export const NETWORK_CONFIGS = {
+  421614: {
+    chainId: 421614,
+    name: 'Arbitrum Sepolia',
+    rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
+    explorerUrl: 'https://sepolia.arbiscan.io',
+    isTestnet: true,
+    currency: 'ETH',
+  },
+  42161: {
+    chainId: 42161,
+    name: 'Arbitrum One',
+    rpcUrl: 'https://arb1.arbitrum.io/rpc',
+    explorerUrl: 'https://arbiscan.io',
+    isTestnet: false,
+    currency: 'ETH',
+  },
+} as const;
+
+// Helper function to get network info by chain ID
+export function getNetworkInfo(chainId: number) {
+  return NETWORK_CONFIGS[chainId as keyof typeof NETWORK_CONFIGS] || {
+    chainId,
+    name: `Chain ${chainId}`,
+    explorerUrl: '',
+    isTestnet: true,
+    currency: 'ETH',
+  };
+}
+
+// Helper function to get explorer URL by chain ID
+export function getExplorerUrlByChainId(chainId: number, type: 'tx' | 'address', value: string): string {
+  const network = getNetworkInfo(chainId);
+  if (!network.explorerUrl) return '#';
+  return `${network.explorerUrl}/${type}/${value}`;
+}
+
+// Legacy helper functions (for backward compatibility)
+export function getExplorerTxUrl(txHash: string, chainId?: number): string {
+  if (chainId) {
+    return getExplorerUrlByChainId(chainId, 'tx', txHash);
+  }
   return `${BLOCKCHAIN_CONFIG.arbitrumSepolia.explorerUrl}/tx/${txHash}`;
 }
 
-// Helper function to get explorer URL for address
-export function getExplorerAddressUrl(address: string): string {
+export function getExplorerAddressUrl(address: string, chainId?: number): string {
+  if (chainId) {
+    return getExplorerUrlByChainId(chainId, 'address', address);
+  }
   return `${BLOCKCHAIN_CONFIG.arbitrumSepolia.explorerUrl}/address/${address}`;
 }
 

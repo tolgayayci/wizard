@@ -32,6 +32,9 @@ import {
   FileCode,
   FileImage,
   Archive,
+  WifiOff,
+  AlertTriangle,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -99,6 +102,7 @@ export function FileExplorer({
   const [selectedPath, setSelectedPath] = useState<string | null>(selectedFile || 'src/lib.rs');
   const [selectedFolderPath, setSelectedFolderPath] = useState<string>(''); // For context-aware adding
   const [loading, setLoading] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'file' | 'folder' | 'rename'>('file');
   const [dialogValue, setDialogValue] = useState('');
@@ -129,9 +133,11 @@ export function FileExplorer({
 
   const fetchTree = useCallback(async () => {
     setLoading(true);
+    setConnectionError(null);
     try {
       const response = await axios.get(`${API_URL}/api/filesystem/tree`, {
         params: { user_id: userId, project_id: projectId },
+        timeout: 10000, // 10 second timeout
       });
       const treeData = response.data.data;
       // Override root node name with project name if provided
@@ -157,12 +163,25 @@ export function FileExplorer({
           return newPaths;
         });
       }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to load file tree',
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      console.error('File tree fetch error:', error);
+      
+      // Determine error type and set appropriate message
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || 
+          error.message?.includes('Network Error') || error.message?.includes('ECONNREFUSED')) {
+        setConnectionError('Backend connection failed. Please check if the server is running.');
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        setConnectionError('Request timed out. The server might be overloaded.');
+      } else if (error.response?.status >= 500) {
+        setConnectionError('Server error occurred. Please try again.');
+      } else if (error.response?.status === 404) {
+        setConnectionError('Project not found. Please verify the project exists.');
+      } else {
+        setConnectionError('Failed to load file tree. Please try again.');
+      }
+      
+      // Clear tree on error
+      setTree(null);
     } finally {
       setLoading(false);
     }
@@ -884,10 +903,52 @@ export function FileExplorer({
       </div>
       
       <ScrollArea className="flex-1 px-1">
-        {tree && (
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Loading file tree...</p>
+            </div>
+          </div>
+        ) : connectionError ? (
+          <div className="flex items-center justify-center py-8 px-4">
+            <div className="text-center space-y-4">
+              <div className="p-3 bg-destructive/10 rounded-full w-fit mx-auto">
+                {connectionError.includes('connection failed') || connectionError.includes('Network Error') ? (
+                  <WifiOff className="h-6 w-6 text-destructive" />
+                ) : (
+                  <AlertTriangle className="h-6 w-6 text-destructive" />
+                )}
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Connection Problem</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed max-w-[200px]">
+                  {connectionError}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchTree}
+                className="gap-2"
+                disabled={loading}
+              >
+                <RotateCcw className="h-4 w-4" />
+                Try Again
+              </Button>
+            </div>
+          </div>
+        ) : tree ? (
           <RootDropArea tree={tree}>
             {renderNode(tree)}
           </RootDropArea>
+        ) : (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <Folder className="h-6 w-6 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">No files found</p>
+            </div>
+          </div>
         )}
       </ScrollArea>
 

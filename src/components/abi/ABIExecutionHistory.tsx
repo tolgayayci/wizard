@@ -24,12 +24,19 @@ import { ABICall } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { getExplorerAddressUrl, getExplorerUrlByChainId, BLOCKCHAIN_CONFIG } from '@/lib/config';
 
 interface ABIExecutionHistoryProps {
   projectId: string;
+  deployment?: {
+    network_info?: {
+      chain_id: number;
+      explorer_url?: string;
+    };
+  };
 }
 
-export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
+export function ABIExecutionHistory({ projectId, deployment }: ABIExecutionHistoryProps) {
   const [calls, setCalls] = useState<ABICall[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
@@ -210,10 +217,12 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                   className="h-8 w-8"
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(
-                      `https://testnet-explorer.superposition.so/tx/${call.contract_address}`,
-                      '_blank'
-                    );
+                    if (call.transaction_hash) {
+                      const explorerUrl = deployment?.network_info 
+                        ? getExplorerUrlByChainId(deployment.network_info.chain_id, 'tx', call.transaction_hash)
+                        : `${BLOCKCHAIN_CONFIG.arbitrumSepolia.explorerUrl}/tx/${call.transaction_hash}`;
+                      window.open(explorerUrl, '_blank');
+                    }
                   }}
                 >
                   <ExternalLink className="h-4 w-4" />
@@ -262,10 +271,12 @@ export function ABIExecutionHistory({ projectId }: ABIExecutionHistoryProps) {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => {
-                            window.open(
-                              `https://testnet-explorer.superposition.so/tx/${selectedCall.contract_address}`,
-                              '_blank'
-                            );
+                            if (selectedCall.transaction_hash) {
+                              const explorerUrl = deployment?.network_info 
+                                ? getExplorerUrlByChainId(deployment.network_info.chain_id, 'tx', selectedCall.transaction_hash)
+                                : `${BLOCKCHAIN_CONFIG.arbitrumSepolia.explorerUrl}/tx/${selectedCall.transaction_hash}`;
+                              window.open(explorerUrl, '_blank');
+                            }
                           }}
                         >
                           <ExternalLink className="h-4 w-4" />

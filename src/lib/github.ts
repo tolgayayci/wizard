@@ -8,6 +8,7 @@ interface CloneResult {
   success: boolean;
   files_count: number;
   message: string;
+  main_code?: string;
 }
 
 interface ApiResponse<T> {
@@ -182,18 +183,25 @@ export async function importGitHubRepository(
       throw new Error(result.error?.message || 'Failed to clone repository');
     }
 
-    // Update project metadata with import success
+    // Update project with actual code and metadata
+    const updateData: any = {
+      import_metadata: {
+        import_date: new Date().toISOString(),
+        repository_name: repoInfo.repo,
+        repository_owner: repoInfo.owner,
+        import_status: 'completed',
+        files_count: result.data?.files_count || 0,
+      }
+    };
+    
+    // If we got the main source code, update it
+    if (result.data?.main_code) {
+      updateData.code = result.data.main_code;
+    }
+    
     await supabase
       .from('projects')
-      .update({
-        import_metadata: {
-          import_date: new Date().toISOString(),
-          repository_name: repoInfo.repo,
-          repository_owner: repoInfo.owner,
-          import_status: 'completed',
-          files_count: result.data?.files_count || 0,
-        }
-      })
+      .update(updateData)
       .eq('id', project.id);
 
     return {

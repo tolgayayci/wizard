@@ -70,6 +70,7 @@ export async function compileContract(
     const payload: CompileRequest = {
       user_id: userId,
       project_id: projectId,
+      code: code, // Include the actual code in the request
     };
 
     // Use local compilation endpoint
@@ -81,6 +82,22 @@ export async function compileContract(
 
     // Handle local compiler response format
     const localResult = response.data;
+    
+    // Parse ABI - it may be abi_json or abi field
+    let parsedAbi = [];
+    if (localResult.abi_json) {
+      try {
+        parsedAbi = JSON.parse(localResult.abi_json);
+      } catch (e) {
+        console.error('Failed to parse ABI JSON:', e);
+      }
+    } else if (localResult.abi) {
+      try {
+        parsedAbi = JSON.parse(localResult.abi);
+      } catch (e) {
+        console.error('Failed to parse ABI:', e);
+      }
+    }
     
     return {
       success: localResult.success,
@@ -94,8 +111,10 @@ export async function compileContract(
         contract_size: localResult.contract_size,
         wasm_size: localResult.wasm_size,
         metadata_hash: localResult.metadata_hash,
+        wasm_hex: localResult.wasm_hex,
+        salt: localResult.salt,
       },
-      abi: localResult.abi ? JSON.parse(localResult.abi) : [],
+      abi: parsedAbi,
       code_snapshot: code,
     };
   } catch (error) {
@@ -279,11 +298,14 @@ export async function lintCode(
 
     const { data: response } = await api.post<ApiResponse<LintResult>>('/lint', payload);
 
-    if (!response.success || !response.data) {
-      throw new Error(response.error?.message || 'Linting failed');
+    // If the API call was successful (we got a response), return the lint data
+    // Even if response.success is false, that just means the linting found issues
+    if (response.data) {
+      return response.data;
     }
-
-    return response.data;
+    
+    // Only throw if we truly got no data
+    throw new Error(response.error?.message || 'Linting failed');
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.data) {
       const apiError = error.response.data as ApiResponse<any>;

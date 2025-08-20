@@ -1,0 +1,96 @@
+# Optimized Sandbox Image for Stylus Smart Contract Development
+# This image is designed to be lightweight and secure for running in multiple containers
+
+FROM rustlang/rust:nightly AS builder
+
+# Install necessary build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-stylus globally (version that works with Rust 1.82)
+RUN cargo install cargo-stylus --version 0.5.6 --locked
+
+# Install wasm32 target
+RUN rustup target add wasm32-unknown-unknown
+
+# Pre-create cargo registry cache
+RUN cargo new --lib /tmp/warmup && \
+    cd /tmp/warmup && \
+    echo 'stylus-sdk = "0.5.0"' >> Cargo.toml && \
+    echo 'alloy-primitives = "0.7"' >> Cargo.toml && \
+    echo 'alloy-sol-types = "0.7"' >> Cargo.toml && \
+    cargo fetch && \
+    rm -rf /tmp/warmup
+
+# Create the final lightweight image
+FROM debian:bookworm-slim
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN useradd -m -u 1000 -s /bin/bash wizard && \
+    mkdir -p /home/wizard/.cargo/registry && \
+    mkdir -p /home/wizard/.cargo/git && \
+    mkdir -p /home/wizard/.rustup
+
+# Copy Rust toolchain from builder
+COPY --from=builder /usr/local/cargo /usr/local/cargo
+COPY --from=builder /usr/local/rustup /usr/local/rustup
+COPY --from=builder /usr/local/cargo/registry /home/wizard/.cargo/registry
+
+# Set environment variables
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    RUST_BACKTRACE=1 \
+    USER=wizard
+
+# Set resource limits at container level (these are defaults, override in docker run)
+ENV CARGO_BUILD_JOBS=2 \
+    CARGO_INCREMENTAL=1 \
+    CARGO_TARGET_DIR=/tmp/target
+
+# Create working directory with proper permissions
+RUN mkdir -p /workspace && chown -R wizard:wizard /workspace
+RUN chown -R wizard:wizard /home/wizard
+
+# Switch to non-root user
+USER wizard
+WORKDIR /workspace
+
+# Pre-warm cargo with common dependencies
+RUN cargo new --lib /tmp/prewarm && \
+    cd /tmp/prewarm && \
+    echo '[dependencies]' >> Cargo.toml && \
+    echo 'stylus-sdk = "0.5.0"' >> Cargo.toml && \
+    echo 'alloy-primitives = "0.7"' >> Cargo.toml && \
+    echo 'alloy-sol-types = "0.7"' >> Cargo.toml && \
+    echo '' >> Cargo.toml && \
+    echo '[features]' >> Cargo.toml && \
+    echo 'export-abi = ["stylus-sdk/export-abi"]' >> Cargo.toml && \
+    echo '' >> Cargo.toml && \
+    echo '[profile.release]' >> Cargo.toml && \
+    echo 'codegen-units = 1' >> Cargo.toml && \
+    echo 'strip = true' >> Cargo.toml && \
+    echo 'lto = true' >> Cargo.toml && \
+    echo 'panic = "abort"' >> Cargo.toml && \
+    echo 'opt-level = "s"' >> Cargo.toml && \
+    cargo build --release --target wasm32-unknown-unknown 2>/dev/null || true && \
+    rm -rf /tmp/prewarm
+
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD cargo --version || exit 1
+
+# Default command
+CMD ["/bin/bash"]

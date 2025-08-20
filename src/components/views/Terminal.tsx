@@ -6,8 +6,11 @@ import { CompilationResult } from '@/lib/types';
 import { Terminal as TerminalIcon, RefreshCw, Trash2, Copy, Check, Loader2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { WS_URL } from '@/lib/config';
+import { WS_URL, API_URL } from '@/lib/config';
 import { useTheme } from 'next-themes';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
+import axios from 'axios';
 import 'xterm/css/xterm.css';
 
 interface TerminalProps {
@@ -17,10 +20,12 @@ interface TerminalProps {
   userId?: string;
   isSharedView?: boolean;
   onCommandComplete?: () => void;
+  projectName?: string;
 }
 
 export interface TerminalRef {
   executeCommand: (command: string) => boolean;
+  writeOutput: (output: string) => void;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
@@ -31,6 +36,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     userId,
     isSharedView = false,
     onCommandComplete,
+    projectName = "Contract",
   } = props;
   // Terminal state
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -55,9 +61,56 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     cargoStylus: 'v0.6.1',
   });
   
+  const { toast } = useToast();
+  
   // Get effective theme
   const effectiveTheme = theme === 'system' ? systemTheme : theme;
   const isDark = effectiveTheme === 'dark';
+
+  // Validate and transform user commands to ensure only cargo stylus commands are allowed
+  const validateAndTransformCommand = (userCommand: string): string | null => {
+    const cmd = userCommand.toLowerCase().trim();
+    
+    // Allowed cargo stylus subcommands (from cargo stylus help)
+    const allowedCommands = [
+      'new',
+      'init', 
+      'export-abi',
+      'constructor',
+      'activate', 'a', // a is alias for activate
+      'cache',
+      'check', 'c', // c is alias for check
+      'get-initcode', 'e', // e is alias for get-initcode
+      'deploy', 'd', // d is alias for deploy
+      'verify', 'v', // v is alias for verify
+      'cgen',
+      'replay', 'r', // r is alias for replay
+      'trace', 't', // t is alias for trace
+      'simulate', 's', // s is alias for simulate
+      'help'
+    ];
+    
+    // If user just types a subcommand, prepend 'cargo stylus'
+    if (allowedCommands.includes(cmd)) {
+      return `cargo stylus ${cmd}`;
+    }
+    
+    // If user types 'cargo stylus' + subcommand, validate the subcommand
+    if (cmd.startsWith('cargo stylus ')) {
+      const subcommand = cmd.substring('cargo stylus '.length).split(' ')[0];
+      if (allowedCommands.includes(subcommand)) {
+        return userCommand; // Return original with proper casing
+      }
+    }
+    
+    // Special case: allow clear command
+    if (cmd === 'clear') {
+      return 'clear';
+    }
+    
+    // Reject everything else
+    return null;
+  };
 
 
   // Focus terminal when clicking on container
@@ -233,14 +286,39 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         
         // Handle special keys
         if (data === '\r') { // Enter key
-          // Send the complete command
+          // Send the complete command with validation
           if (commandBufferRef.current.trim()) {
-            const payload = {
-              command: commandBufferRef.current,
-              session_id: currentSessionId,
-            };
-            console.log('Sending command:', payload);
-            wsRef.current.send(JSON.stringify(payload));
+            const userCommand = commandBufferRef.current.trim();
+            const validatedCommand = validateAndTransformCommand(userCommand);
+            
+            if (validatedCommand) {
+              const payload = {
+                command: validatedCommand,
+                session_id: currentSessionId,
+              };
+              console.log('Sending validated command:', payload);
+              wsRef.current.send(JSON.stringify(payload));
+            } else {
+              // Show available cargo stylus commands (matching cargo stylus help output)
+              term.write('\r\n\x1b[1;33mAvailable commands:\x1b[0m\r\n');
+              term.write('  \x1b[1;32mnew\x1b[0m           Create a new Stylus project\r\n');
+              term.write('  \x1b[1;32minit\x1b[0m          Initializes a Stylus project in the current directory\r\n');
+              term.write('  \x1b[1;32mexport-abi\x1b[0m    Export a Solidity ABI\r\n');
+              term.write('  \x1b[1;32mconstructor\x1b[0m   Print the signature of the constructor\r\n');
+              term.write('  \x1b[1;32mactivate\x1b[0m      Activate an already deployed contract [aliases: a]\r\n');
+              term.write('  \x1b[1;32mcache\x1b[0m         Cache a contract using the Stylus CacheManager for Arbitrum chains\r\n');
+              term.write('  \x1b[1;32mcheck\x1b[0m         Check a contract [aliases: c]\r\n');
+              term.write('  \x1b[1;32mget-initcode\x1b[0m  Generate and print initcode for the contract [aliases: e]\r\n');
+              term.write('  \x1b[1;32mdeploy\x1b[0m        Deploy a contract [aliases: d]\r\n');
+              term.write('  \x1b[1;32mverify\x1b[0m        Verify the deployment of a Stylus contract [aliases: v]\r\n');
+              term.write('  \x1b[1;32mcgen\x1b[0m          Generate c code bindings for a Stylus contract\r\n');
+              term.write('  \x1b[1;32mreplay\x1b[0m        Replay a transaction in gdb [aliases: r]\r\n');
+              term.write('  \x1b[1;32mtrace\x1b[0m         Trace a transaction [aliases: t]\r\n');
+              term.write('  \x1b[1;32msimulate\x1b[0m      Simulate a transaction [aliases: s]\r\n');
+              term.write('  \x1b[1;32mhelp\x1b[0m          Print this message or the help of the given subcommand(s)\r\n');
+              term.write('  \x1b[1;32mclear\x1b[0m         Clear terminal\r\n');
+              term.write('\r\n\x1b[2mTip: Just type the command name (e.g., "check" runs "cargo stylus check")\x1b[0m\r\n$ ');
+            }
           }
           commandBufferRef.current = '';
         } else if (data === '\x7f') { // Backspace
@@ -361,65 +439,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     }
   }, [isDark, isInitialized]);
 
-  // Track if we've shown the current compilation result
-  const [lastShownResult, setLastShownResult] = useState<CompilationResult | null>(null);
-  
-  // Handle compilation results - only show when actually compiling
-  useEffect(() => {
-    // Only show compilation results when we have a new result after compiling
-    if (xtermRef.current && result && isInitialized && sessionId && !isCompiling) {
-      // Check if this is a new result we haven't shown yet
-      if (lastShownResult === result) return; // Already shown this result
-      
-      // Check if this is a fresh compilation (within last 10 seconds)
-      const isNewCompilation = result.details?.compilation_time && 
-        (Date.now() / 1000 - result.details.compilation_time) < 10;
-      
-      if (!isNewCompilation) return; // Don't show old compilation results
-      
-      setLastShownResult(result); // Mark this result as shown
-      
-      xtermRef.current.writeln('');
-      xtermRef.current.writeln('\x1b[1;36m> cargo stylus check\x1b[0m');
-      
-      if (result.stdout) {
-        const lines = result.stdout.split('\n');
-        lines.forEach((line: string) => {
-          if (line.trim()) {
-            // Add color to compilation output
-            if (line.includes('Compiling')) {
-              xtermRef.current?.writeln(`\x1b[1;32m${line}\x1b[0m`);
-            } else if (line.includes('Finished')) {
-              xtermRef.current?.writeln(`\x1b[1;34m${line}\x1b[0m`);
-            } else if (line.includes('warning')) {
-              xtermRef.current?.writeln(`\x1b[1;33m${line}\x1b[0m`);
-            } else {
-              xtermRef.current?.writeln(line);
-            }
-          }
-        });
-      }
-      
-      if (result.stderr) {
-        const lines = result.stderr.split('\n');
-        lines.forEach((line: string) => {
-          if (line.trim()) {
-            xtermRef.current?.writeln(`\x1b[1;31m${line}\x1b[0m`);
-          }
-        });
-      }
-      
-      if (result.success) {
-        xtermRef.current.writeln('\x1b[1;32m✓ Compilation successful\x1b[0m');
-      } else {
-        xtermRef.current.writeln('\x1b[1;31m✗ Compilation failed\x1b[0m');
-      }
-      
-      xtermRef.current.write('$ ');
-    }
-  }, [result, isInitialized, sessionId, isCompiling, lastShownResult]);
 
-  // Expose executeCommand method via ref
+  // Expose executeCommand and writeOutput methods via ref
   useImperativeHandle(ref, () => ({
     executeCommand: (command: string) => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && sessionId) {
@@ -432,6 +453,41 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         return true;
       }
       return false;
+    },
+    writeOutput: (output: string) => {
+      if (xtermRef.current) {
+        // Write output directly to the terminal
+        xtermRef.current.writeln(''); // Add some spacing
+        xtermRef.current.writeln('\x1b[1;36m> cargo stylus check\x1b[0m');
+        
+        // Filter to show only cargo stylus check output, not additional cargo check output
+        let filteredOutput = output;
+        
+        // Look for common patterns that indicate additional cargo commands were run
+        // and split at those points to show only the stylus check output
+        const splitPatterns = [
+          /error: expected `.`, `=`/,
+          /error: could not compile/,
+          /--> Cargo\.toml:/
+        ];
+        
+        for (const pattern of splitPatterns) {
+          const match = filteredOutput.search(pattern);
+          if (match !== -1) {
+            filteredOutput = filteredOutput.substring(0, match).trim();
+            break;
+          }
+        }
+        
+        // Write the filtered output line by line to preserve formatting
+        const lines = filteredOutput.split('\n');
+        lines.forEach((line) => {
+          xtermRef.current?.writeln(line);
+        });
+        
+        // Add a new prompt after output
+        xtermRef.current.write('\r\n$ ');
+      }
     }
   }), [sessionId]);
 
@@ -621,7 +677,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
         <div className="flex items-center gap-2">
           <TerminalIcon className="h-4 w-4" />
-          <span className="text-sm font-medium">Terminal</span>
+          <span className="text-sm font-medium">Cargo Stylus Terminal</span>
           <div className={`w-2 h-2 rounded-full ${
             isConnected ? 'bg-green-500' : 
             isReconnecting ? 'bg-yellow-500 animate-pulse' : 
@@ -726,6 +782,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
           }}
         />
       </div>
+
     </div>
   );
 });

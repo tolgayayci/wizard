@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle, Wand2, Link, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { handleAuthCallback, linkIdentity, signInWithMagicLink } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
 export function AuthCallback() {
@@ -98,6 +99,20 @@ export function AuthCallback() {
         
         if (!data.session) {
           throw new Error('No session found');
+        }
+        
+        // Verify user record was created
+        console.log('Verifying user record for:', data.session.user.email);
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.session.user.id)
+          .single();
+          
+        if (!userData && !userError) {
+          console.log('User record not found after auth, waiting...');
+          // Give it a moment for the record to be created
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
 
         // If we were linking accounts, show linking success

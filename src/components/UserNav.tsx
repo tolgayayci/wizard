@@ -49,6 +49,13 @@ export function UserNav() {
     getCurrentUser().then(setUser);
   }, []);
 
+  // Fetch linked accounts when user is loaded
+  useEffect(() => {
+    if (user) {
+      fetchLinkedAccounts();
+    }
+  }, [user]);
+
   const handleSignOut = async () => {
     try {
       await signOut();
@@ -86,9 +93,9 @@ export function UserNav() {
       await linkIdentity('github');
       toast({
         title: "GitHub account linked!",
-        description: "Your GitHub account has been successfully linked.",
+        description: "Your GitHub account has been successfully linked. Your profile avatar has been updated.",
       });
-      // Refresh linked accounts
+      // Refresh linked accounts to update avatar
       fetchLinkedAccounts();
     } catch (error) {
       console.error('GitHub linking error:', error);
@@ -106,6 +113,16 @@ export function UserNav() {
     window.open('https://github.com/tolgayayci/wizard/issues/new?labels=bug&template=bug_report.md', '_blank');
   };
 
+  // Get the appropriate avatar URL - prefer GitHub avatar if available
+  const getAvatarUrl = () => {
+    const githubAccount = linkedAccounts.find(acc => acc.provider === 'github');
+    if (githubAccount?.identity_data?.avatar_url) {
+      return githubAccount.identity_data.avatar_url;
+    }
+    // Fallback to Vercel avatar service
+    return `https://avatar.vercel.sh/${user?.email}`;
+  };
+
   if (!user) return null;
 
   return (
@@ -117,7 +134,7 @@ export function UserNav() {
             className="h-8 w-8 rounded-full"
           >
             <Avatar className="h-8 w-8">
-              <AvatarImage src={`https://avatar.vercel.sh/${user.email}`} alt={user.email} />
+              <AvatarImage src={getAvatarUrl()} alt={user.email} />
               <AvatarFallback>{user.email.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
           </Button>

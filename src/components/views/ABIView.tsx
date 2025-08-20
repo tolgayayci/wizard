@@ -7,9 +7,10 @@ import { ABIEmptyState } from '@/components/abi/ABIEmptyState';
 import { ABIContractSelector } from '@/components/abi/ABIContractSelector';
 import { ABIExecuteDialog } from '@/components/abi/ABIExecuteDialog';
 import { ABIExecutionHistory } from '@/components/abi/ABIExecutionHistory';
+import { ABIEventMonitor } from '@/components/abi/ABIEventMonitor';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-import { History, PlayCircle } from 'lucide-react';
+import { History, PlayCircle, Activity } from 'lucide-react';
 import { ethers } from 'ethers';
 import { BLOCKCHAIN_CONFIG } from '@/lib/config';
 
@@ -24,7 +25,7 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
   const [isContractVerified, setIsContractVerified] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<ABIMethod | null>(null);
-  const [activeView, setActiveView] = useState<'interface' | 'history'>('interface');
+  const [activeView, setActiveView] = useState<'interface' | 'history' | 'events'>('interface');
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -148,6 +149,15 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
             <History className="h-4 w-4" />
             History
           </Button>
+          <Button
+            variant={activeView === 'events' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="gap-2"
+            onClick={() => setActiveView('events')}
+          >
+            <Activity className="h-4 w-4" />
+            Events
+          </Button>
         </div>
       </div>
 
@@ -180,8 +190,28 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
             </div>
           )}
         </>
+      ) : activeView === 'history' ? (
+        <ABIExecutionHistory 
+          projectId={projectId} 
+          deployment={selectedDeployment}
+        />
       ) : (
-        <ABIExecutionHistory projectId={projectId} />
+        selectedDeployment ? (
+          <ABIEventMonitor 
+            projectId={projectId} 
+            deployment={selectedDeployment}
+            isSharedView={isSharedView}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center">
+              <Activity className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">
+                Select a deployment to monitor events
+              </p>
+            </div>
+          </div>
+        )
       )}
 
       {selectedMethod && selectedDeployment && !isSharedView && (
@@ -191,6 +221,8 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
           method={selectedMethod}
           contractAddress={selectedDeployment.contract_address}
           projectId={projectId}
+          deploymentMode={selectedDeployment.deployment_mode}
+          networkInfo={selectedDeployment.network_info}
           onExecute={(result) => {
             toast({
               title: "Success",

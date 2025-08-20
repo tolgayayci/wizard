@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import MonacoEditor from "@monaco-editor/react";
 import { EditorHeader } from './editor/EditorHeader';
+import { EditorStatusBar } from './editor/EditorStatusBar';
 import { DeployDialog } from './editor/DeployDialog';
-import { AbiDownloadModal } from './modals/AbiDownloadModal';
+import { AbiViewerModal } from './modals/AbiViewerModal';
 import { WasmAnalysisModal } from './modals/WasmAnalysisModal';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
@@ -24,6 +25,7 @@ interface EditorProps {
   isCompiling?: boolean;
   readOnly?: boolean;
   projectId?: string;
+  projectName?: string;
   lastCompilation?: CompilationResult | null;
   onDeploySuccess?: () => void;
   onSave?: () => void;
@@ -38,6 +40,7 @@ export function Editor({
   isCompiling,
   readOnly = false,
   projectId,
+  projectName,
   lastCompilation,
   onDeploySuccess,
   onSave,
@@ -46,14 +49,20 @@ export function Editor({
 }: EditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isFormatting, setIsFormatting] = useState(false);
-  const [isLinting, setIsLinting] = useState(false);
+  const [isLintingInBackground, setIsLintingInBackground] = useState(false);
   const [showDeployDialog, setShowDeployDialog] = useState(false);
   const [showABIError, setShowABIError] = useState(false);
-  const [showAbiDownloadModal, setShowAbiDownloadModal] = useState(false);
+  const [showAbiViewerModal, setShowAbiViewerModal] = useState(false);
+  const [fetchedAbiData, setFetchedAbiData] = useState<any[] | null>(null);
+  const [isLoadingAbi, setIsLoadingAbi] = useState(false);
   const [showWasmAnalysisModal, setShowWasmAnalysisModal] = useState(false);
   const [lintIssues, setLintIssues] = useState<LintIssue[]>([]);
+  const [lintStatus, setLintStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
+  const lintDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLintedContentRef = useRef<string>('');
+  const lastLintTimeRef = useRef<number>(0);
   const { theme, systemTheme } = useTheme();
   const { toast } = useToast();
   
@@ -98,6 +107,14 @@ export function Editor({
     defineEditorTheme(monaco, effectiveTheme === 'dark');
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, handleSave);
+    
+    // Add content change listener for real-time linting
+    editor.onDidChangeModelContent(() => {
+      if (currentFile?.endsWith('.rs') && !isSharedView) {
+        const content = editor.getValue();
+        debouncedLint(content, false); // debounced linting
+      }
+    });
   };
   
   // Update editor language when file changes
@@ -134,6 +151,11 @@ export function Editor({
 
       // Call onSave callback to update parent component
       onSave?.();
+      
+      // Trigger linting after successful save for Rust files
+      if (currentFile?.endsWith('.rs')) {
+        debouncedLint(currentValue, true); // immediate = true for save
+      }
     } catch (error) {
       console.error('Error saving:', error);
       toast({
@@ -177,57 +199,89 @@ export function Editor({
     }
   };
 
-  const handleLint = async () => {
-    if (!projectId || !currentFile || isLinting || isSharedView) return;
-    
-    setIsLinting(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Authentication required");
-
-      const result = await lintCode(user.id, projectId, currentFile);
+  // Debounced lint function for real-time linting
+  const debouncedLint = useCallback(
+    async (content: string, immediate: boolean = false) => {
+      if (!projectId || !currentFile || !currentFile.endsWith('.rs') || isSharedView) return;
       
-      if (result.success) {
-        setLintIssues(result.issues);
-        
-        // Add markers to the editor for lint issues
-        if (editorRef.current && monacoRef.current && result.issues.length > 0) {
-          const model = editorRef.current.getModel();
-          if (model) {
-            const markers = result.issues.map(issue => ({
-              startLineNumber: issue.line || 1,
-              startColumn: issue.column || 1,
-              endLineNumber: issue.line || 1,
-              endColumn: (issue.column || 1) + 10, // Approximate end column
-              message: issue.message,
-              severity: issue.level === 'error' ? 8 : issue.level === 'warning' ? 4 : 1, // Error=8, Warning=4, Info=1
-              source: issue.code || 'clippy',
-            }));
-            monacoRef.current.editor.setModelMarkers(model, 'clippy', markers);
-          }
-        }
-
-        toast({
-          title: result.issues.length === 0 ? "No issues found" : `Found ${result.issues.length} issue(s)`,
-          description: result.issues.length === 0 
-            ? "Your code looks good!" 
-            : "Check the editor for highlighted issues",
-          variant: result.issues.length === 0 ? "default" : "destructive",
-        });
-      } else {
-        throw new Error(result.errors.join('\n') || 'Linting failed');
+      // Clear existing timeout
+      if (lintDebounceTimeoutRef.current) {
+        clearTimeout(lintDebounceTimeoutRef.current);
       }
-    } catch (error) {
-      console.error('Linting error:', error);
-      toast({
-        title: "Linting failed",
-        description: error instanceof Error ? error.message : "Failed to lint code",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLinting(false);
-    }
-  };
+      
+      const runLint = async () => {
+        // Check if content actually changed and if enough time has passed
+        const now = Date.now();
+        if (
+          !immediate &&
+          content === lastLintedContentRef.current &&
+          now - lastLintTimeRef.current < 2000 // Minimum 2 seconds between lints
+        ) {
+          return;
+        }
+        setIsLintingInBackground(true);
+        setLintStatus('checking');
+        
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const result = await lintCode(user.id, projectId, currentFile);
+          
+          // Handle both issues and errors from backend
+          const allIssues = result.issues || [];
+          const errorIssues = (result.errors || []).map((error: string, index: number) => ({
+            line: 1, // Default line since backend doesn't provide line numbers yet
+            column: 1,
+            message: error,
+            level: 'error' as const,
+            code: 'lint-error'
+          }));
+          
+          const combinedIssues = [...allIssues, ...errorIssues];
+          setLintIssues(combinedIssues);
+          setLintStatus(combinedIssues.length > 0 ? 'error' : 'success');
+          lastLintedContentRef.current = content;
+          lastLintTimeRef.current = now;
+            
+          // Add markers to the editor for lint issues
+          if (editorRef.current && monacoRef.current) {
+            const model = editorRef.current.getModel();
+            if (model) {
+              // Clear existing markers
+              monacoRef.current.editor.setModelMarkers(model, 'clippy', []);
+              
+              // Add new markers if there are issues
+              if (combinedIssues.length > 0) {
+                const markers = combinedIssues.map(issue => ({
+                  startLineNumber: issue.line || 1,
+                  startColumn: issue.column || 1,
+                  endLineNumber: issue.line || 1,
+                  endColumn: (issue.column || 1) + 10, // Approximate end column
+                  message: issue.message,
+                  severity: issue.level === 'error' ? 8 : issue.level === 'warning' ? 4 : 1, // Error=8, Warning=4, Info=1
+                  source: issue.code || 'clippy',
+                }));
+                monacoRef.current.editor.setModelMarkers(model, 'clippy', markers);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Background linting error:', error);
+          setLintStatus('error');
+        } finally {
+          setIsLintingInBackground(false);
+        }
+      };
+      
+      if (immediate) {
+        runLint();
+      } else {
+        lintDebounceTimeoutRef.current = setTimeout(runLint, 1500);
+      }
+    },
+    [projectId, currentFile, isSharedView]
+  );
 
   const handleDeployClick = () => {
     // Check if we have a valid ABI from the last compilation
@@ -308,8 +362,53 @@ export function Editor({
     }
   };
 
-  const handleDownloadAbi = () => {
-    setShowAbiDownloadModal(true);
+  const handleDownloadAbi = async () => {
+    if (!projectId) return;
+
+    setIsLoadingAbi(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Authentication required");
+
+      // Try to fetch ABI JSON from the backend
+      const response = await axios.post(`${API_URL}/api/local/export-abi-json`, {
+        user_id: user.id,
+        project_id: projectId,
+      });
+
+      if (response.data.success && response.data.data) {
+        // Parse the ABI JSON string
+        let abiData = response.data.data;
+        if (typeof abiData === 'string') {
+          try {
+            abiData = JSON.parse(abiData);
+          } catch (parseError) {
+            console.warn('Failed to parse ABI JSON, using as-is:', parseError);
+          }
+        }
+        
+        setFetchedAbiData(abiData);
+        setShowAbiViewerModal(true);
+      } else {
+        // Fallback to using lastCompilation ABI if available
+        if (lastCompilation?.abi && Array.isArray(lastCompilation.abi) && lastCompilation.abi.length > 0) {
+          setFetchedAbiData(lastCompilation.abi);
+          setShowAbiViewerModal(true);
+        } else {
+          throw new Error("No ABI data available. Make sure your contract is compiled successfully.");
+        }
+      }
+    } catch (error) {
+      console.error('ABI fetch error:', error);
+      toast({
+        title: "ABI Load Failed",
+        description: error instanceof Error ? error.message : "Failed to load ABI data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingAbi(false);
+    }
   };
 
   const handleAnalyzeWasm = () => {
@@ -324,6 +423,15 @@ export function Editor({
     }
   }, [effectiveTheme]);
 
+  // Cleanup debounce timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (lintDebounceTimeoutRef.current) {
+        clearTimeout(lintDebounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="h-full flex flex-col bg-background border rounded-md overflow-hidden">
       <EditorHeader
@@ -331,14 +439,13 @@ export function Editor({
         onDeploy={handleDeployClick}
         onSave={handleSave}
         onFormat={handleFormat}
-        onLint={handleLint}
         onDownloadWasm={handleDownloadWasm}
         onDownloadAbi={handleDownloadAbi}
         onAnalyzeWasm={handleAnalyzeWasm}
         isCompiling={isCompiling || false}
         isSaving={isSaving}
         isFormatting={isFormatting}
-        isLinting={isLinting}
+        isLoadingAbi={isLoadingAbi}
         hasSuccessfulCompilation={lastCompilation?.wasm_available || lastCompilation?.success}
         isSharedView={isSharedView}
         currentFile={currentFile}
@@ -375,6 +482,16 @@ export function Editor({
           }
         />
       </div>
+      
+      {/* Status Bar */}
+      <EditorStatusBar
+        lintStatus={lintStatus}
+        lintIssueCount={lintIssues.length}
+        isFormatting={isFormatting}
+        onFormat={handleFormat}
+        currentFile={currentFile}
+        isSharedView={isSharedView}
+      />
       {projectId && !isSharedView && (
         <>
           <DeployDialog
@@ -384,11 +501,18 @@ export function Editor({
             lastCompilation={lastCompilation}
             onDeploySuccess={handleDeploySuccess}
             showABIError={showABIError}
+            onCompile={onCompile}
           />
-          <AbiDownloadModal
-            open={showAbiDownloadModal}
-            onOpenChange={setShowAbiDownloadModal}
-            projectId={projectId}
+          <AbiViewerModal
+            open={showAbiViewerModal}
+            onOpenChange={(open) => {
+              setShowAbiViewerModal(open);
+              if (!open) {
+                setFetchedAbiData(null);
+              }
+            }}
+            abiJson={fetchedAbiData || lastCompilation?.abi}
+            projectName={projectName || 'Contract'}
           />
           <WasmAnalysisModal
             open={showWasmAnalysisModal}

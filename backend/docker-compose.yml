@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  wizard-backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=info
+    env_file:
+      - .env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - wizard-storage:/tmp/wizard-storage
+    networks:
+      - wizard-network
+    depends_on:
+      - wizard-sandbox
+
+  wizard-sandbox:
+    build:
+      context: .
+      dockerfile: docker/sandbox/Dockerfile
+    image: wizard-sandbox:latest
+    networks:
+      - wizard-network
+    volumes:
+      - wizard-projects:/home/wizard/projects
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+      - seccomp:unconfined
+    read_only: false
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+      - /home/wizard/.cargo/registry:rw,size=500m
+
+volumes:
+  wizard-storage:
+  wizard-projects:
+
+networks:
+  wizard-network:
+    driver: bridge

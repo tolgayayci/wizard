@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code2Icon, Blocks, Sparkles, Wand2, PlayCircle, Bug } from 'lucide-react';
+import { Code2Icon, Blocks, Sparkles, Wand2, PlayCircle, Bug, Rocket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeProvider } from 'next-themes';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
-import { Project } from '@/lib/types';
+import { Project, Deployment } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { UserNav } from '@/components/UserNav';
 import { ProjectList } from '@/components/projects/ProjectList';
 import { TemplateList } from '@/components/projects/TemplateList';
+import { DeploymentList } from '@/components/projects/DeploymentList';
 import { PROJECT_TEMPLATES } from '@/lib/templates';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectTabs, SortOption } from '@/components/projects/ProjectTabs';
@@ -30,7 +31,8 @@ export function ProjectsPage() {
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [activeSection, setActiveSection] = useState<'projects' | 'templates'>('projects');
+  const [activeSection, setActiveSection] = useState<'projects' | 'templates' | 'deployments'>('projects');
+  const [deploymentCount, setDeploymentCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showGitHubImportDialog, setShowGitHubImportDialog] = useState(false);
@@ -72,6 +74,7 @@ export function ProjectsPage() {
 
   useEffect(() => {
     fetchProjects();
+    fetchDeploymentCount();
   }, [sortBy]);
 
   const fetchProjects = async () => {
@@ -129,6 +132,31 @@ export function ProjectsPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchDeploymentCount = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get all user's projects
+      const { data: projects } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('user_id', user.id);
+      
+      if (projects && projects.length > 0) {
+        // Count deployments for all user's projects
+        const { count } = await supabase
+          .from('deployments')
+          .select('*', { count: 'exact', head: true })
+          .in('project_id', projects.map(p => p.id));
+        
+        setDeploymentCount(count || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching deployment count:', error);
     }
   };
 
@@ -285,6 +313,12 @@ export function ProjectsPage() {
       icon: Sparkles,
       count: PROJECT_TEMPLATES.length,
     },
+    {
+      id: 'deployments' as const,
+      label: 'Deployments',
+      icon: Rocket,
+      count: deploymentCount,
+    },
   ];
 
   const getActiveContent = () => {
@@ -311,6 +345,13 @@ export function ProjectsPage() {
             onUseTemplate={handleCreateProject}
             isLoading={isLoading}
             sortBy={sortBy}
+          />
+        );
+      case 'deployments':
+        return (
+          <DeploymentList
+            searchQuery={searchQuery}
+            isLoading={isLoading}
           />
         );
     }

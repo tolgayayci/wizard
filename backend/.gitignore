@@ -1,0 +1,84 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock file (optional - include if you want reproducible builds)
+# Cargo.lock
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Debug files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker volumes and temp files
+/tmp/
+/temp/
+/storage/
+/wizard-storage/
+
+# User project data (contains compiled WASM and user files)
+/projects/
+
+# Test coverage
+*.profraw
+*.profdata
+/coverage/
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Python cache (if any Python scripts are used)
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Backup files
+*.backup
+*.bak
+*.old
+
+# Local development files
+.local/
+.cache/
+
+# Generated documentation
+/doc/
+/docs/
+
+# Supabase local files
+/supabase/.temp/
+/supabase/.branches/
+
+# Build outputs
+/dist/
+/build/
+/out/
+
+# Temporary compilation files
+*.wasm
+*.wat
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# Container-specific
+docker-compose.override.yml
+.dockerignore.local
