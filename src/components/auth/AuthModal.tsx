@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Mail, 
   Loader2,
-  Wand2,
   AlertCircle,
   CheckCircle,
   Github,
   ArrowRight,
+  ArrowLeft,
+  Wand2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,12 +19,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
 import { useToast } from '@/hooks/use-toast';
 import { signInWithMagicLink, signInWithGitHub } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -39,6 +34,7 @@ export function AuthModal({ children }: AuthModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [cooldownTime, setCooldownTime] = useState(0);
+  const [showEmailFlow, setShowEmailFlow] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -60,6 +56,7 @@ export function AuthModal({ children }: AuthModalProps) {
       setMagicLinkSent(false);
       setEmail('');
       setCooldownTime(0);
+      setShowEmailFlow(false);
     }
   };
 
@@ -135,161 +132,40 @@ export function AuthModal({ children }: AuthModalProps) {
           {children}
         </DialogTrigger>
       )}
-      <DialogContent className="sm:max-w-[420px] p-0">
+      <DialogContent className="sm:max-w-[480px] p-0 bg-white">
         <DialogHeader className="sr-only">
           <DialogTitle>Sign in to Wizard</DialogTitle>
         </DialogHeader>
 
-        {/* Header */}
-        <div className="flex items-center justify-center py-6 border-b">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <Wand2 className="h-5 w-5 text-primary" />
-            </div>
-            <span className={cn(
-              "text-xl font-bold tracking-tight",
-              "bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent"
-            )}>
-              WIZARD
-            </span>
-          </div>
-        </div>
+        <div className="px-8 pt-10 pb-6">
+          {/* Main content based on state */}
+          {!showEmailFlow && !magicLinkSent ? (
+            // Initial state - show both options
+            <div>
+              <div className="text-center space-y-2 mb-6">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Wand2 className="h-6 w-6 text-blue-600" />
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    Welcome to Wizard
+                  </h2>
+                </div>
+                <p className="text-gray-600">
+                  Build and deploy smart contracts in seconds
+                </p>
+              </div>
 
-        <div className="p-6">
-          <Tabs defaultValue="magic-link" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="magic-link" className="flex items-center gap-2">
-                <Mail className="h-4 w-4" />
-                Magic Link
-              </TabsTrigger>
-              <TabsTrigger value="github" className="flex items-center gap-2">
-                <Github className="h-4 w-4" />
-                GitHub
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Magic Link Tab */}
-            <TabsContent value="magic-link" className="space-y-4">
-              {!magicLinkSent ? (
-                <>
-                  <div className="text-center space-y-2 mb-6">
-                    <h3 className="font-semibold">Sign in with Magic Link</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Enter your email and we'll send you a secure link to sign in
-                    </p>
-                  </div>
-
-                  <form onSubmit={handleMagicLinkSubmit} className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium mb-2 block">
-                        Email address
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="email"
-                          placeholder="name@example.com"
-                          value={email}
-                          onChange={(e) => {
-                            setEmail(e.target.value);
-                            setError(null);
-                          }}
-                          className="pl-9 h-11"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {error && (
-                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                        <span>{error}</span>
-                      </div>
-                    )}
-
-                    <Button 
-                      type="submit"
-                      className="w-full h-11"
-                      disabled={isLoadingMagicLink || cooldownTime > 0}
-                    >
-                      {isLoadingMagicLink ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Sending link...
-                        </>
-                      ) : cooldownTime > 0 ? (
-                        `Wait ${cooldownTime}s`
-                      ) : (
-                        <>
-                          Send Magic Link
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </form>
-                </>
-              ) : (
-                <div className="text-center space-y-4">
-                  <div className="mx-auto w-12 h-12 bg-green-500/10 rounded-full flex items-center justify-center">
-                    <CheckCircle className="h-6 w-6 text-green-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-2">Check your email</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      We've sent a secure link to <strong>{email}</strong>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Click the link in your email to sign in. The link will expire in 1 hour.
-                    </p>
-                  </div>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setMagicLinkSent(false);
-                      setEmail('');
-                    }}
-                    className="w-full"
-                  >
-                    Try different email
-                  </Button>
-
-                  {cooldownTime === 0 && (
-                    <Button
-                      variant="ghost"
-                      onClick={handleMagicLinkSubmit}
-                      className="w-full"
-                      disabled={isLoadingMagicLink}
-                    >
-                      Resend magic link
-                    </Button>
-                  )}
+              {error && (
+                <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm flex items-center gap-2 mb-4">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{error}</span>
                 </div>
               )}
-            </TabsContent>
 
-            {/* GitHub Tab */}
-            <TabsContent value="github" className="space-y-4">
-              <div className="text-center space-y-4">
-                <div className="space-y-2 mb-6">
-                  <h3 className="font-semibold">Sign in with GitHub</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Continue with your GitHub account for seamless integration
-                  </p>
-                </div>
-
-                {error && (
-                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
+              <div className="space-y-3">
                 <Button
                   onClick={handleGitHubSignIn}
                   disabled={isLoadingGitHub}
-                  className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white"
-                  variant="default"
+                  className="w-full h-12 bg-black hover:bg-gray-900 text-white font-medium"
                 >
                   {isLoadingGitHub ? (
                     <>
@@ -304,24 +180,148 @@ export function AuthModal({ children }: AuthModalProps) {
                   )}
                 </Button>
 
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p>• Access your repositories and project data</p>
-                  <p>• Sync with your GitHub profile</p>
-                  <p>• Collaborate directly from your projects</p>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="px-2 bg-white text-gray-500">OR</span>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={() => setShowEmailFlow(true)}
+                  variant="outline"
+                  className="w-full h-12 border-gray-300 hover:bg-gray-50 font-medium"
+                >
+                  <Mail className="mr-2 h-5 w-5" />
+                  Continue with Email
+                </Button>
+              </div>
+            </div>
+          ) : showEmailFlow && !magicLinkSent ? (
+            // Email flow
+            <div className="space-y-6">
+              <button
+                onClick={() => {
+                  setShowEmailFlow(false);
+                  setError(null);
+                }}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="text-sm">Back</span>
+              </button>
+
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl font-semibold text-gray-900">
+                  Enter your email
+                </h2>
+                <p className="text-gray-600">
+                  We'll send you a secure link to sign in
+                </p>
+              </div>
+
+              <form onSubmit={handleMagicLinkSubmit} className="space-y-4">
+                <div>
+                  <Input
+                    type="email"
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError(null);
+                    }}
+                    className="h-12 text-base"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 rounded-lg bg-red-50 text-red-600 text-sm flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <Button 
+                  type="submit"
+                  className="w-full h-12 bg-black hover:bg-gray-900 text-white font-medium"
+                  disabled={isLoadingMagicLink || cooldownTime > 0}
+                >
+                  {isLoadingMagicLink ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Sending link...
+                    </>
+                  ) : cooldownTime > 0 ? (
+                    `Wait ${cooldownTime}s`
+                  ) : (
+                    <>
+                      Send Magic Link
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </form>
+            </div>
+          ) : (
+            // Success state
+            <div className="space-y-6">
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-16 h-16 bg-green-50 rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-8 w-8 text-green-600" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-semibold text-gray-900">
+                    Check your email
+                  </h2>
+                  <p className="text-gray-600">
+                    We've sent a secure link to
+                  </p>
+                  <p className="font-medium text-gray-900">{email}</p>
+                  <p className="text-sm text-gray-500 pt-2">
+                    Click the link in your email to sign in. The link expires in 1 hour.
+                  </p>
+                </div>
+                
+                <div className="space-y-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setMagicLinkSent(false);
+                      setShowEmailFlow(false);
+                      setEmail('');
+                    }}
+                    className="w-full h-12 border-gray-300 hover:bg-gray-50"
+                  >
+                    Try different email
+                  </Button>
+
+                  {cooldownTime === 0 && (
+                    <button
+                      onClick={handleMagicLinkSubmit}
+                      className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                      disabled={isLoadingMagicLink}
+                    >
+                      Didn't receive it? Resend
+                    </button>
+                  )}
                 </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
         </div>
 
-        <div className="px-6 py-4 border-t bg-muted/40">
-          <p className="text-xs text-muted-foreground text-center">
+        <div className="px-8 py-5 border-t border-gray-100">
+          <p className="text-xs text-gray-500 text-center">
             By continuing, you agree to our{' '}
-            <a href="#" className="underline underline-offset-4 hover:text-primary">
-              Terms of Service
+            <a href="#" className="text-gray-700 hover:text-gray-900 underline-offset-4 hover:underline">
+              Terms
             </a>{' '}
             and{' '}
-            <a href="#" className="underline underline-offset-4 hover:text-primary">
+            <a href="#" className="text-gray-700 hover:text-gray-900 underline-offset-4 hover:underline">
               Privacy Policy
             </a>
           </p>

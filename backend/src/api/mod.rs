@@ -9,6 +9,7 @@ pub mod embed;
 pub mod filesystem;
 pub mod format;
 pub mod github;
+pub mod health;
 pub mod crates;
 pub mod local_compile;
 pub mod packages;

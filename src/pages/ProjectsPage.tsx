@@ -18,7 +18,6 @@ import { ProjectEditDialog } from '@/components/projects/ProjectEditDialog';
 import { ProjectDeleteDialog } from '@/components/projects/ProjectDeleteDialog';
 import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
 import { GitHubImportDialog } from '@/components/projects/GitHubImportDialog';
-import { WelcomeDialog } from '@/components/landing/WelcomeDialog';
 import { cn } from '@/lib/utils';
 import { SEO } from '@/components/seo/SEO';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +35,6 @@ export function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showGitHubImportDialog, setShowGitHubImportDialog] = useState(false);
-  const [showWelcomeTour, setShowWelcomeTour] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -165,6 +163,8 @@ export function ProjectsPage() {
     description: string; 
     template?: typeof PROJECT_TEMPLATES[0];
   }) => {
+    let projectId: string | null = null;
+    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
@@ -184,45 +184,64 @@ export function ProjectsPage() {
         .single();
 
       if (error) throw error;
+      projectId = project.id;
 
-      // Initialize backend filesystem if template is provided
-      if (data.template) {
-        try {
-          const { initializeProjectFilesystem } = await import('@/lib/api');
-          
-          await initializeProjectFilesystem(
-            project.id,
-            user.id,
-            data.name,
-            data.template.code,
-            data.template.dependencies || []
-          );
-          
+      // Initialize backend filesystem (required for all projects)
+      try {
+        const { initializeProjectFilesystem } = await import('@/lib/api');
+        
+        const result = await initializeProjectFilesystem(
+          project.id,
+          user.id,
+          data.name,
+          data.template?.code || '',
+          data.template?.dependencies || []
+        );
+        
+        if (!result.success) {
+          throw new Error(result.message || 'Failed to initialize project filesystem');
+        }
+        
+        // Successfully initialized
+        if (data.template) {
           toast({
             title: "Template Project Created",
             description: `${data.template.name} template has been set up successfully`,
           });
-        } catch (backendError) {
-          console.warn('Backend filesystem initialization failed:', backendError);
-          // Continue anyway - the database project is created
+        } else {
           toast({
-            title: "Project Created",
-            description: "Project created successfully (filesystem setup pending)",
+            title: "Success",
+            description: "Project created successfully",
           });
         }
-      } else {
-        toast({
-          title: "Success",
-          description: "Project created successfully",
-        });
+      } catch (backendError) {
+        // If filesystem init fails, delete the project to maintain consistency
+        await supabase
+          .from('projects')
+          .delete()
+          .eq('id', project.id);
+        
+        throw new Error(
+          backendError instanceof Error 
+            ? backendError.message 
+            : 'Failed to initialize project filesystem'
+        );
       }
 
       // Refresh projects list
       await fetchProjects();
 
-      // Navigate to the new project
+      // Navigate to the new project - filesystem is confirmed ready
       navigate(`/projects/${project.id}`);
     } catch (error) {
+      // Clean up if project was created but something failed
+      if (projectId) {
+        await supabase
+          .from('projects')
+          .delete()
+          .eq('id', projectId);
+      }
+      
       console.error('Error creating project:', error);
       toast({
         title: "Error",
@@ -293,10 +312,10 @@ export function ProjectsPage() {
     }
   };
 
-  const handleGitHubImportSuccess = (projectId: string) => {
+  const handleGitHubImportSuccess = async (projectId: string) => {
     // Refresh projects to include the new imported project
-    fetchProjects();
-    // Navigate to the new project
+    await fetchProjects();
+    // Navigate to the new project - backend has already confirmed filesystem is ready
     navigate(`/projects/${projectId}`);
   };
 
@@ -466,10 +485,6 @@ export function ProjectsPage() {
         userId={currentUser?.id || ''}
       />
 
-      <WelcomeDialog
-        open={showWelcomeTour}
-        onOpenChange={setShowWelcomeTour}
-      />
     </div>
   );
 }

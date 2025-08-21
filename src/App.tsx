@@ -149,6 +149,31 @@ export function App() {
                        (location.pathname.startsWith('/projects/') && location.pathname.endsWith('/shared')) ||
                        location.pathname.startsWith('/tryonwizard/') ||
                        location.pathname.startsWith('/auth/');
+  
+  // Determine if current route needs app layout (no scrolling)
+  const isAppLayout = location.pathname === '/projects' || 
+                     (location.pathname.startsWith('/projects/') && !location.pathname.endsWith('/shared')) ||
+                     location.pathname.startsWith('/embed/');
+
+  // Apply app-layout class to html and body when on app pages
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    
+    if (isAppLayout) {
+      html.classList.add('app-layout');
+      body.classList.add('app-layout');
+    } else {
+      html.classList.remove('app-layout');
+      body.classList.remove('app-layout');
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      html.classList.remove('app-layout');
+      body.classList.remove('app-layout');
+    };
+  }, [isAppLayout]);
 
   useEffect(() => {
     // Initialize GA on public routes

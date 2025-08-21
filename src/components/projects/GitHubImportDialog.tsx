@@ -192,11 +192,11 @@ export function GitHubImportDialog({
         description: `${result.filesCount} files imported from ${repoInfo.owner}/${repoInfo.repo}`,
       });
 
-      // Redirect to the new project after a short delay
+      // Small delay to show success state
       setTimeout(() => {
         onSuccess(result.projectId);
         handleClose();
-      }, 2000);
+      }, 500);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to import repository');
       setImportState('error');
@@ -213,7 +213,11 @@ export function GitHubImportDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      // Prevent closing while importing
+      if (importState === 'importing') return;
+      if (!newOpen) handleClose();
+    }}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -335,7 +339,10 @@ export function GitHubImportDialog({
             {importState === 'importing' && (
               <div className="flex items-center gap-2 p-3 border rounded-lg bg-blue-500/5 border-blue-500/20">
                 <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                <span className="text-sm">Importing repository files...</span>
+                <div className="flex-1">
+                  <div className="text-sm font-medium">Importing repository...</div>
+                  <div className="text-xs text-muted-foreground">This may take a few moments</div>
+                </div>
               </div>
             )}
 

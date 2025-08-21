@@ -177,6 +177,8 @@ export async function importGitHubRepository(
   projectDescription: string,
   userId: string
 ): Promise<{ projectId: string; filesCount: number }> {
+  let projectId: string | null = null;
+  
   try {
     // Parse repository info
     const repoInfo = parseGitHubUrl(repoUrl);
@@ -210,6 +212,8 @@ export async function importGitHubRepository(
       throw new Error(`Failed to create project: ${projectError.message}`);
     }
 
+    projectId = project.id;
+
     // Then clone the repository using the backend API
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
     
@@ -228,15 +232,10 @@ export async function importGitHubRepository(
     const result: ApiResponse<CloneResult> = await response.json();
 
     if (!result.success) {
-      // Delete the project if cloning failed
-      await supabase
-        .from('projects')
-        .delete()
-        .eq('id', project.id);
-
       throw new Error(result.error?.message || 'Failed to clone repository');
     }
 
+    // Backend has confirmed the clone is complete and filesystem is ready
     // Update project with actual code and metadata
     const updateData: any = {
       import_metadata: {
@@ -263,6 +262,15 @@ export async function importGitHubRepository(
       filesCount: result.data?.files_count || 0,
     };
   } catch (error) {
+    // If we created a project but something failed, clean it up
+    if (projectId) {
+      const { supabase } = await import('./supabase');
+      await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+    }
+    
     console.error('Error importing GitHub repository:', error);
     throw error instanceof Error ? error : new Error('Failed to import repository');
   }

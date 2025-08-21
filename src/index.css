@@ -2,6 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Gradient animation for hero text */
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes fast-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(59, 130, 246, 0.8), 0 0 60px rgba(59, 130, 246, 0.4); }
+}
+
+@keyframes fast-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes fast-scroll {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes scroll {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(3px); }
+  100% { transform: translateY(0); }
+}
+
+.animate-gradient {
+  animation: gradient 3s ease infinite;
+}
+
+.animate-fast-gradient {
+  animation: fast-gradient 1.5s ease infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-fast-bounce {
+  animation: fast-bounce 1s ease-in-out infinite;
+}
+
+.animate-fast-scroll {
+  animation: fast-scroll 0.8s ease-in-out infinite;
+}
+
+.animate-scroll {
+  animation: scroll 1.5s ease-in-out infinite;
+}
+
+.bg-200\% {
+  background-size: 200% 200%;
+}
+
+.bg-300\% {
+  background-size: 300% 300%;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -65,11 +132,11 @@
   }
   
   html {
-    @apply h-full overflow-hidden;
+    @apply h-full;
   }
   
   body {
-    @apply bg-background text-foreground m-0 h-full w-full overflow-hidden;
+    @apply bg-background text-foreground m-0 h-full w-full;
   }
   
   /* Prevent content shift when modal opens */
@@ -78,7 +145,17 @@
   }
   
   #root {
-    @apply h-full w-full overflow-hidden;
+    @apply h-full w-full;
+  }
+  
+  /* App layout - for pages that should not scroll */
+  html.app-layout,
+  body.app-layout {
+    @apply overflow-hidden;
+  }
+  
+  html.app-layout #root {
+    @apply h-full overflow-hidden;
   }
 
   /* Custom scrollbar styles */

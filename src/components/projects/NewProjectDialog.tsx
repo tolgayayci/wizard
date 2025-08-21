@@ -12,6 +12,7 @@ import {
   Braces,
   Plus,
   FileCode2,
+  Loader2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -50,7 +51,7 @@ const formSchema = z.object({
 interface NewProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreateProject: (data: { name: string; description: string; template?: typeof PROJECT_TEMPLATES[0] }) => void;
+  onCreateProject: (data: { name: string; description: string; template?: typeof PROJECT_TEMPLATES[0] }) => Promise<void>;
 }
 
 export function NewProjectDialog({
@@ -62,6 +63,7 @@ export function NewProjectDialog({
   const [selectedTemplate, setSelectedTemplate] = useState<typeof PROJECT_TEMPLATES[0] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Creating...');
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -94,6 +96,7 @@ export function NewProjectDialog({
   const handleSubmit = async (data: z.infer<typeof formSchema>) => {
     setError(null);
     setIsSubmitting(true);
+    setLoadingMessage('Checking server...');
 
     // Check backend connection first
     try {
@@ -122,17 +125,34 @@ export function NewProjectDialog({
       return;
     }
 
-    onCreateProject({
-      name: data.name.trim(),
-      description: data.description?.trim() || '',
-      template: selectedTemplate,
-    });
-    setIsSubmitting(false);
-    onOpenChange(false);
+    try {
+      setLoadingMessage(selectedTemplate ? 'Setting up template...' : 'Creating project...');
+      
+      await onCreateProject({
+        name: data.name.trim(),
+        description: data.description?.trim() || '',
+        template: selectedTemplate,
+      });
+      
+      setLoadingMessage('Almost ready...');
+      
+      // Success - dialog will be closed by parent
+      onOpenChange(false);
+    } catch (error) {
+      // Error is handled by parent component
+      console.error('Project creation failed:', error);
+    } finally {
+      setIsSubmitting(false);
+      setLoadingMessage('Creating...');
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(newOpen) => {
+      // Prevent closing while submitting
+      if (isSubmitting) return;
+      onOpenChange(newOpen);
+    }}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <div className="flex items-center gap-3">
@@ -231,8 +251,8 @@ export function NewProjectDialog({
                     >
                       {isSubmitting ? (
                         <>
-                          <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          Creating...
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {loadingMessage}
                         </>
                       ) : (
                         <>
@@ -364,8 +384,8 @@ export function NewProjectDialog({
                       >
                         {isSubmitting ? (
                           <>
-                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            Creating...
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {loadingMessage}
                           </>
                         ) : (
                           <>

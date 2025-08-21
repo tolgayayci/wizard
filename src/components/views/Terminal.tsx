@@ -218,13 +218,16 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       // Immediately check if backend is available
       const checkBackend = async () => {
         try {
-          const response = await axios.get(`${API_URL}/health`, { timeout: 2000 });
-          if (response.status !== 200) {
+          const response = await axios.get(`${API_URL}/health`, { timeout: 5000 });
+          if (response.status === 200) {
+            setBackendConnectionError(false);
+          } else {
             setBackendConnectionError(true);
           }
         } catch (error) {
           console.error('Backend health check failed:', error);
-          setBackendConnectionError(true);
+          // Don't immediately set error - let WebSocket connection attempt first
+          // Only set error if WebSocket also fails
         }
       };
       checkBackend();
@@ -233,7 +236,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
 
   // Initialize terminal on mount (without theme - will be set separately)
   useEffect(() => {
-    if (terminalRef.current && !xtermRef.current && userId && projectId && !isSharedView && !backendConnectionError) {
+    if (terminalRef.current && !xtermRef.current && userId && projectId && !isSharedView) {
       // Initialize xterm.js without theme colors initially
       const term = new XTerm({
         cursorBlink: true,
@@ -530,7 +533,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         setBackendConnectionError(true);
         setIsConnecting(false);
       }
-    }, 3000); // 3 seconds timeout for initial connection
+    }, 10000); // 10 seconds timeout for initial connection - give it more time
     
     const ws = new WebSocket(`${WS_URL}/ws/terminal?user_id=${userId}&project_id=${projectId}`);
     

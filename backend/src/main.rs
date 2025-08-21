@@ -65,6 +65,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(cors)
             .wrap(middleware::Logger::default())
             .service(
+                web::scope("/health")
+                    .configure(api::health::configure),
+            )
+            .service(
                 web::scope("/api")
                     .configure(api::compile::configure)
                     .configure(api::compilations::configure)
