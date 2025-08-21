@@ -3,7 +3,7 @@ import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { WebLinksAddon } from 'xterm-addon-web-links';
 import { CompilationResult } from '@/lib/types';
-import { Terminal as TerminalIcon, RefreshCw, Trash2, Copy, Check, Loader2, Info } from 'lucide-react';
+import { Terminal as TerminalIcon, RefreshCw, Trash2, Copy, Check, Loader2, Info, WifiOff, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { WS_URL, API_URL } from '@/lib/config';
@@ -49,6 +49,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [backendConnectionError, setBackendConnectionError] = useState<boolean>(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const commandBufferRef = useRef<string>('');
   const sessionIdRef = useRef<string | null>(null);
   const terminalBufferRef = useRef<string[]>([]);
@@ -210,9 +212,28 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     }, 500);
   };
 
+  // Check backend health on mount
+  useEffect(() => {
+    if (userId && projectId && !isSharedView) {
+      // Immediately check if backend is available
+      const checkBackend = async () => {
+        try {
+          const response = await axios.get(`${API_URL}/health`, { timeout: 2000 });
+          if (response.status !== 200) {
+            setBackendConnectionError(true);
+          }
+        } catch (error) {
+          console.error('Backend health check failed:', error);
+          setBackendConnectionError(true);
+        }
+      };
+      checkBackend();
+    }
+  }, [userId, projectId, isSharedView]);
+
   // Initialize terminal on mount (without theme - will be set separately)
   useEffect(() => {
-    if (terminalRef.current && !xtermRef.current && userId && projectId && !isSharedView) {
+    if (terminalRef.current && !xtermRef.current && userId && projectId && !isSharedView && !backendConnectionError) {
       // Initialize xterm.js without theme colors initially
       const term = new XTerm({
         cursorBlink: true,
@@ -383,7 +404,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         reconnectAttemptsRef.current = 0;
       };
     }
-  }, [userId, projectId, isSharedView]); // Terminal only created once, theme updates handled separately
+  }, [userId, projectId, isSharedView, backendConnectionError]); // Terminal only created once, theme updates handled separately
 
   // Helper function to apply theme to terminal
   const applyTerminalTheme = (term: XTerm, dark: boolean) => {
@@ -500,11 +521,25 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       return;
     }
     
+    setIsConnecting(true);
+    // Don't clear error here - keep showing it until successful connection
+    
+    // Set a timeout to show error if connection doesn't succeed quickly
+    const connectionTimeout = setTimeout(() => {
+      if (!isConnected && reconnectAttemptsRef.current === 0) {
+        setBackendConnectionError(true);
+        setIsConnecting(false);
+      }
+    }, 3000); // 3 seconds timeout for initial connection
+    
     const ws = new WebSocket(`${WS_URL}/ws/terminal?user_id=${userId}&project_id=${projectId}`);
     
     ws.onopen = () => {
       console.log('Terminal WebSocket connected');
+      clearTimeout(connectionTimeout); // Clear the timeout on successful connection
       setIsConnected(true);
+      setIsConnecting(false);
+      setBackendConnectionError(false);
       reconnectAttemptsRef.current = 0; // Reset reconnect attempts on successful connection
       // Don't clear or write anything here, wait for init message
     };
@@ -600,15 +635,23 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
+      clearTimeout(connectionTimeout); // Clear the timeout on error
       setIsConnected(false);
-      if (xtermRef.current) {
+      setIsConnecting(false);
+      // Show error immediately on first connection attempt, or after 3 retries
+      if (reconnectAttemptsRef.current === 0 || reconnectAttemptsRef.current >= 3) {
+        setBackendConnectionError(true);
+      }
+      if (xtermRef.current && reconnectAttemptsRef.current >= 3) {
         xtermRef.current.writeln('\r\n\x1b[1;31mConnection error. Click refresh to reconnect.\x1b[0m');
       }
     };
 
     ws.onclose = () => {
       console.log('Terminal WebSocket disconnected');
+      clearTimeout(connectionTimeout); // Clear the timeout on close
       setIsConnected(false);
+      setIsConnecting(false);
       // Don't clear sessionId here - we might reconnect
       
       if (xtermRef.current && !isReconnecting) {
@@ -629,6 +672,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
             }
           }, 2000 * reconnectAttemptsRef.current); // Exponential backoff
         } else {
+          // Only show error UI after all reconnection attempts have failed
+          setBackendConnectionError(true);
           xtermRef.current.writeln('\r\n\x1b[1;31mTerminal disconnected. Click refresh to reconnect.\x1b[0m');
           setSessionId(null);
           sessionIdRef.current = null;
@@ -673,8 +718,9 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
 
   return (
     <div className="h-full flex flex-col bg-background border rounded-md overflow-hidden">
-      {/* Terminal Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
+      {/* Terminal Header - Hide when backend is disconnected */}
+      {!backendConnectionError && (
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/40">
         <div className="flex items-center gap-2">
           <TerminalIcon className="h-4 w-4" />
           <span className="text-sm font-medium">Cargo Stylus Terminal</span>
@@ -761,28 +807,62 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
           
         </div>
       </div>
+      )}
       
-      {/* Terminal Content - properly constrained */}
-      <div 
-        ref={containerRef}
-        className={`flex-1 overflow-hidden ${isDark ? 'bg-zinc-950' : 'bg-white'}`}
-        onClick={() => {
-          // Only focus if no text is selected
-          if (!xtermRef.current?.hasSelection()) {
-            focusTerminal();
-          }
-        }}
-        style={{ cursor: 'text', minHeight: 0 }}
-      >
+      {/* Terminal Content or Error Display */}
+      {backendConnectionError ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <div className="p-2.5 bg-destructive/10 rounded-md w-fit mx-auto">
+              <WifiOff className="h-6 w-6 text-destructive" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-medium text-sm">Connection Problem</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed max-w-[200px]">
+                Backend connection failed.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Don't clear error here - let successful connection clear it
+                reconnectAttemptsRef.current = 0; // Reset attempts for manual retry
+                connectWebSocket();
+              }}
+              className="gap-2"
+              disabled={isConnecting}
+            >
+              {isConnecting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="h-4 w-4" />
+              )}
+              {isConnecting ? 'Connecting...' : 'Try Again'}
+            </Button>
+          </div>
+        </div>
+      ) : (
         <div 
-          ref={terminalRef} 
-          className="h-full w-full p-2"
-          style={{ 
-            overflow: 'hidden'
+          ref={containerRef}
+          className={`flex-1 overflow-hidden ${isDark ? 'bg-zinc-950' : 'bg-white'}`}
+          onClick={() => {
+            // Only focus if no text is selected
+            if (!xtermRef.current?.hasSelection()) {
+              focusTerminal();
+            }
           }}
-        />
-      </div>
-
+          style={{ cursor: 'text', minHeight: 0 }}
+        >
+          <div 
+            ref={terminalRef} 
+            className="h-full w-full p-2"
+            style={{ 
+              overflow: 'hidden'
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 });

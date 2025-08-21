@@ -308,16 +308,16 @@ export function ProjectsPage() {
       count: projects.length,
     },
     {
-      id: 'templates' as const,
-      label: 'Templates',
-      icon: Sparkles,
-      count: PROJECT_TEMPLATES.length,
-    },
-    {
       id: 'deployments' as const,
       label: 'Deployments',
       icon: Rocket,
       count: deploymentCount,
+    },
+    {
+      id: 'templates' as const,
+      label: 'Templates',
+      icon: Sparkles,
+      count: PROJECT_TEMPLATES.length,
     },
   ];
 

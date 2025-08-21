@@ -9,6 +9,7 @@ interface EditorStatusBarProps {
   onFormat: () => void;
   currentFile?: string | null;
   isSharedView?: boolean;
+  isDisabled?: boolean;
 }
 
 export function EditorStatusBar({
@@ -18,6 +19,7 @@ export function EditorStatusBar({
   onFormat,
   currentFile,
   isSharedView = false,
+  isDisabled = false,
 }: EditorStatusBarProps) {
   const isRustFile = currentFile?.endsWith('.rs');
   
@@ -56,11 +58,11 @@ export function EditorStatusBar({
         {isRustFile && !isSharedView && (
           <Button
             onClick={onFormat}
-            disabled={isFormatting}
+            disabled={isFormatting || isDisabled}
             variant="ghost"
             size="sm"
             className="h-5 px-2 text-xs hover:bg-muted/50"
-            title="Format code with rustfmt"
+            title={isDisabled ? "Backend connection required" : "Format code with rustfmt"}
           >
             {isFormatting ? (
               <Clock className="h-3 w-3 animate-spin" />

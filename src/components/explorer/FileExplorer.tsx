@@ -103,6 +103,7 @@ export function FileExplorer({
   const [selectedFolderPath, setSelectedFolderPath] = useState<string>(''); // For context-aware adding
   const [loading, setLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'file' | 'folder' | 'rename'>('file');
   const [dialogValue, setDialogValue] = useState('');
@@ -131,9 +132,14 @@ export function FileExplorer({
     }
   }, [selectedFile, userId, projectId]);
 
-  const fetchTree = useCallback(async () => {
-    setLoading(true);
-    setConnectionError(null);
+  const fetchTree = useCallback(async (isRetry = false) => {
+    if (isRetry) {
+      setIsRetrying(true);
+    } else {
+      setLoading(true);
+      setConnectionError(null);
+    }
+    
     try {
       const response = await axios.get(`${API_URL}/api/filesystem/tree`, {
         params: { user_id: userId, project_id: projectId },
@@ -145,6 +151,8 @@ export function FileExplorer({
         treeData.name = projectName;
       }
       setTree(treeData);
+      setConnectionError(null); // Clear error on success
+      setIsRetrying(false);
       
       // Auto-expand root and src folders after tree loads
       if (treeData) {
@@ -166,26 +174,16 @@ export function FileExplorer({
     } catch (error: any) {
       console.error('File tree fetch error:', error);
       
-      // Determine error type and set appropriate message
-      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || 
-          error.message?.includes('Network Error') || error.message?.includes('ECONNREFUSED')) {
-        setConnectionError('Backend connection failed. Please check if the server is running.');
-      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        setConnectionError('Request timed out. The server might be overloaded.');
-      } else if (error.response?.status >= 500) {
-        setConnectionError('Server error occurred. Please try again.');
-      } else if (error.response?.status === 404) {
-        setConnectionError('Project not found. Please verify the project exists.');
-      } else {
-        setConnectionError('Failed to load file tree. Please try again.');
-      }
+      // Set simple error message
+      setConnectionError('Backend connection failed.');
+      setIsRetrying(false);
       
       // Clear tree on error
       setTree(null);
     } finally {
       setLoading(false);
     }
-  }, [userId, projectId, projectName, toast]);
+  }, [userId, projectId, projectName]);
 
   useEffect(() => {
     fetchTree();
@@ -855,70 +853,71 @@ export function FileExplorer({
       onDragEnd={handleDragEnd}
     >
       <div className={cn('flex flex-col h-full', className)}>
-      <div className="flex items-center justify-between px-3 py-2 border-b">
-        <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 gap-1"
-            onClick={() => openDialog('file')}
-            title={selectedFolderPath ? `New File in ${selectedFolderPath}` : 'New File in Root'}
-          >
-            <FilePlus className="h-3.5 w-3.5" />
-            <span className="text-xs">File</span>
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 gap-1"
-            onClick={() => openDialog('folder')}
-            title={selectedFolderPath ? `New Folder in ${selectedFolderPath}` : 'New Folder in Root'}
-          >
-            <FolderPlus className="h-3.5 w-3.5" />
-            <span className="text-xs">Folder</span>
-          </Button>
-          {onManagePackages && (
+      {!connectionError && (
+        <div className="flex items-center justify-between px-3 py-2 border-b">
+          <div className="flex gap-1">
             <Button
               variant="ghost"
               size="sm"
               className="h-7 px-2 gap-1"
-              onClick={onManagePackages}
-              title="Manage Packages"
+              onClick={() => openDialog('file')}
+              disabled={loading}
+              title={selectedFolderPath ? `New File in ${selectedFolderPath}` : 'New File in Root'}
             >
-              <Package className="h-3.5 w-3.5" />
-              <span className="text-xs">Packages</span>
+              <FilePlus className="h-3.5 w-3.5" />
+              <span className="text-xs">File</span>
             </Button>
-          )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 gap-1"
+              onClick={() => openDialog('folder')}
+              disabled={loading}
+              title={selectedFolderPath ? `New Folder in ${selectedFolderPath}` : 'New Folder in Root'}
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+              <span className="text-xs">Folder</span>
+            </Button>
+            {onManagePackages && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 gap-1"
+                onClick={onManagePackages}
+                disabled={loading}
+                title="Manage Packages"
+              >
+                <Package className="h-3.5 w-3.5" />
+                <span className="text-xs">Packages</span>
+              </Button>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={() => fetchTree()}
+            disabled={loading}
+            title="Refresh File Tree"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 w-7 p-0"
-          onClick={fetchTree}
-          disabled={loading}
-          title="Refresh File Tree"
-        >
-          <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-        </Button>
-      </div>
+      )}
       
-      <ScrollArea className="flex-1 px-1">
+      <div className="flex-1 relative">
         {loading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-3 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">Loading file tree...</p>
             </div>
           </div>
         ) : connectionError ? (
-          <div className="flex items-center justify-center py-8 px-4">
+          <div className="absolute inset-0 flex items-center justify-center px-4">
             <div className="text-center space-y-4">
-              <div className="p-3 bg-destructive/10 rounded-full w-fit mx-auto">
-                {connectionError.includes('connection failed') || connectionError.includes('Network Error') ? (
-                  <WifiOff className="h-6 w-6 text-destructive" />
-                ) : (
-                  <AlertTriangle className="h-6 w-6 text-destructive" />
-                )}
+              <div className="p-2.5 bg-destructive/10 rounded-md w-fit mx-auto">
+                <WifiOff className="h-6 w-6 text-destructive" />
               </div>
               <div className="space-y-2">
                 <h3 className="font-medium text-sm">Connection Problem</h3>
@@ -929,28 +928,34 @@ export function FileExplorer({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchTree}
+                onClick={() => fetchTree(true)}
                 className="gap-2"
-                disabled={loading}
+                disabled={isRetrying}
               >
-                <RotateCcw className="h-4 w-4" />
-                Try Again
+                {isRetrying ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                {isRetrying ? 'Connecting...' : 'Try Again'}
               </Button>
             </div>
           </div>
         ) : tree ? (
-          <RootDropArea tree={tree}>
-            {renderNode(tree)}
-          </RootDropArea>
+          <ScrollArea className="h-full px-1">
+            <RootDropArea tree={tree}>
+              {renderNode(tree)}
+            </RootDropArea>
+          </ScrollArea>
         ) : (
-          <div className="flex items-center justify-center py-8">
+          <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
               <Folder className="h-6 w-6 mx-auto mb-3 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">No files found</p>
             </div>
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

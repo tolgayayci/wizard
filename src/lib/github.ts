@@ -115,6 +115,60 @@ export async function checkGitHubRepository(owner: string, repo: string): Promis
 }
 
 /**
+ * Validates if a GitHub repository is a valid Stylus project
+ * by checking for Cargo.toml at root and stylus-sdk dependency
+ */
+export async function validateStylusProject(owner: string, repo: string): Promise<{ isValid: boolean; reason?: string }> {
+  try {
+    // First, fetch the Cargo.toml file from the repository root
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/Cargo.toml`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'Wizard-IDE',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { 
+          isValid: false, 
+          reason: 'No Cargo.toml found in repository root. This doesn\'t appear to be a Stylus project.' 
+        };
+      }
+      throw new Error(`GitHub API returned status ${response.status}`);
+    }
+
+    const fileData = await response.json();
+    
+    // Decode the base64 content
+    const content = atob(fileData.content);
+    
+    // Check if the Cargo.toml contains stylus-sdk dependency
+    const hasStylusSdk = content.includes('stylus-sdk') || 
+                        content.includes('stylus_sdk') ||
+                        content.includes('stylus-proc') ||
+                        content.includes('stylus_proc');
+    
+    if (!hasStylusSdk) {
+      return { 
+        isValid: false, 
+        reason: 'This project doesn\'t include stylus-sdk as a dependency. Please select a valid Stylus smart contract project.' 
+      };
+    }
+
+    return { isValid: true };
+  } catch (error) {
+    console.error('Error validating Stylus project:', error);
+    // If we can't validate, let's be permissive and allow the import
+    // The backend will handle any actual issues during cloning
+    return { 
+      isValid: true,
+      reason: 'Could not validate project structure, proceeding with import' 
+    };
+  }
+}
+
+/**
  * Imports a GitHub repository by cloning it to the backend and creating a new project
  */
 export async function importGitHubRepository(

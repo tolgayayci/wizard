@@ -35,10 +35,12 @@ import {
   validateGitHubUrl,
   parseGitHubUrl,
   checkGitHubRepository,
+  validateStylusProject,
   importGitHubRepository,
   suggestProjectName,
 } from '@/lib/github';
 import { cn } from '@/lib/utils';
+import { API_URL } from '@/lib/config';
 
 const formSchema = z.object({
   repoUrl: z.string()
@@ -125,6 +127,13 @@ export function GitHubImportDialog({
         throw new Error('Repository is private. Only public repositories can be imported.');
       }
 
+      // Validate if it's a Stylus project
+      const stylusCheck = await validateStylusProject(parsedRepo.owner, parsedRepo.repo);
+      
+      if (!stylusCheck.isValid) {
+        throw new Error(stylusCheck.reason || 'Not a valid Stylus project');
+      }
+
       const repoData = {
         ...parsedRepo,
         name: repoCheck.name,
@@ -148,8 +157,24 @@ export function GitHubImportDialog({
   const handleImport = async (data: FormData) => {
     if (!repoInfo) return;
 
-    setImportState('importing');
     setError(null);
+
+    // Check backend connection first
+    try {
+      const healthCheck = await fetch(`${API_URL}/health`, { 
+        method: 'GET'
+      }).catch(() => null);
+      
+      if (!healthCheck || !healthCheck.ok) {
+        setError('Unable to connect to the server. We apologize for the inconvenience. Please try again in a few moments.');
+        return;
+      }
+    } catch (error) {
+      setError('Unable to connect to the server. We apologize for the inconvenience. Please try again in a few moments.');
+      return;
+    }
+
+    setImportState('importing');
 
     try {
       const result = await importGitHubRepository(
@@ -241,7 +266,7 @@ export function GitHubImportDialog({
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                    Repository found
+                    Valid Stylus project found
                   </span>
                 </div>
                 <div className="flex items-center justify-between">

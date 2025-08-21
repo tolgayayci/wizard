@@ -80,10 +80,10 @@ impl FileSystemService {
             self.init_project(user_id, project_id).await?;
         }
         
-        self.build_tree(&project_path).await
+        self.build_tree(&project_path, 0, 10).await
     }
 
-    async fn build_tree(&self, path: &Path) -> Result<FileNode> {
+    async fn build_tree(&self, path: &Path, depth: usize, max_depth: usize) -> Result<FileNode> {
         let metadata = fs::metadata(path).await?;
         let name = path
             .file_name()
@@ -93,23 +93,42 @@ impl FileSystemService {
         
         if metadata.is_dir() {
             let mut children = Vec::new();
+            
+            // Stop recursion at max depth
+            if depth >= max_depth {
+                return Ok(FileNode {
+                    name,
+                    path: path.to_string_lossy().to_string(),
+                    is_directory: true,
+                    children: Some(children), // Empty children array
+                    size: None,
+                    modified: None,
+                });
+            }
+            
             let mut entries = fs::read_dir(path).await?;
             
             while let Some(entry) = entries.next_entry().await? {
-                // Skip hidden files and common ignore patterns, but allow .github
                 let entry_name = entry.file_name().to_string_lossy().to_string();
-                if entry_name == "target" || entry_name == "node_modules" {
+                
+                // Skip build and dependency directories
+                if matches!(entry_name.as_str(), 
+                    "target" | "node_modules" | "dist" | "build" | ".next" | 
+                    "out" | "coverage" | ".turbo" | ".parcel-cache" | "__pycache__"
+                ) {
                     continue;
                 }
                 
                 // Skip most hidden files/directories but allow important ones
                 if entry_name.starts_with('.') && !matches!(entry_name.as_str(), 
-                    ".github" | ".gitignore" | ".gitattributes" | ".env.example" | ".dockerignore"
+                    ".github" | ".gitignore" | ".gitattributes" | ".env.example" | 
+                    ".dockerignore" | ".cargo"
                 ) {
                     continue;
                 }
                 
-                if let Ok(child) = Box::pin(self.build_tree(&entry.path())).await {
+                // Recursively build tree for valid entries with incremented depth
+                if let Ok(child) = Box::pin(self.build_tree(&entry.path(), depth + 1, max_depth)).await {
                     children.push(child);
                 }
             }

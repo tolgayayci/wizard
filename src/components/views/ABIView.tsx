@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { ABIMethod, Deployment } from '@/lib/types';
@@ -10,9 +10,10 @@ import { ABIExecutionHistory } from '@/components/abi/ABIExecutionHistory';
 import { ABIEventMonitor } from '@/components/abi/ABIEventMonitor';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-import { History, PlayCircle, Activity } from 'lucide-react';
+import { History, PlayCircle, Activity, WifiOff, AlertCircle } from 'lucide-react';
 import { ethers } from 'ethers';
-import { BLOCKCHAIN_CONFIG } from '@/lib/config';
+import { BLOCKCHAIN_CONFIG, API_URL } from '@/lib/config';
+import axios from 'axios';
 
 interface ABIViewProps {
   projectId: string;
@@ -27,6 +28,7 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
   const [selectedMethod, setSelectedMethod] = useState<ABIMethod | null>(null);
   const [activeView, setActiveView] = useState<'interface' | 'history' | 'events'>('interface');
   const [isLoading, setIsLoading] = useState(true);
+  const [backendConnectionError, setBackendConnectionError] = useState(false);
   const { toast } = useToast();
 
   const verifyContract = async (address: string) => {
@@ -73,6 +75,26 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
       setIsLoading(false);
     }
   };
+
+  // Check backend connection
+  const checkBackendConnection = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/health`, { timeout: 5000 });
+      if (response.status === 200) {
+        setBackendConnectionError(false);
+      }
+    } catch (error) {
+      console.error('Backend connection check failed:', error);
+      setBackendConnectionError(true);
+    }
+  }, []);
+
+  // Check backend connection on mount and periodically
+  useEffect(() => {
+    checkBackendConnection();
+    const interval = setInterval(checkBackendConnection, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [checkBackendConnection]);
 
   // Fetch deployments when component mounts or when refreshTrigger changes
   useEffect(() => {
@@ -171,19 +193,36 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
 
       {activeView === 'interface' ? (
         selectedDeployment ? (
-          <ScrollArea className="flex-1">
-            <div className="p-4 space-y-2">
-              {selectedDeployment.abi.map((method, index) => (
-                <ABIMethodCard
-                  key={index}
-                  method={method}
-                  onExecute={handleExecute}
-                  isContractVerified={!isSharedView}
-                  isSharedView={isSharedView}
-                />
-              ))}
+          backendConnectionError && selectedDeployment.deployment_mode === 'wizard' ? (
+            <div className="flex-1 flex items-center justify-center p-8">
+              <div className="text-center space-y-4">
+                <div className="p-2.5 bg-destructive/10 rounded-md w-fit mx-auto">
+                  <WifiOff className="h-6 w-6 text-destructive" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm">Connection Problem</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed max-w-[280px] mx-auto">
+                    Wizard wallet deployments require backend connection to interact with contracts. If you have contracts deployed with your own wallet, you can still interact with them.
+                  </p>
+                </div>
+              </div>
             </div>
-          </ScrollArea>
+          ) : (
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-2">
+                {selectedDeployment.abi.map((method, index) => (
+                  <ABIMethodCard
+                    key={index}
+                    method={method}
+                    onExecute={handleExecute}
+                    isContractVerified={!isSharedView}
+                    isSharedView={isSharedView}
+                    isDisabled={backendConnectionError && selectedDeployment.deployment_mode === 'wizard'}
+                  />
+                ))}
+              </div>
+            </ScrollArea>
+          )
         ) : (
           <div className="flex-1">
             <ABIEmptyState />

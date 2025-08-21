@@ -16,6 +16,7 @@ interface EditorHeaderProps {
   hasSuccessfulCompilation?: boolean;
   isSharedView?: boolean;
   currentFile?: string | null;
+  isDisabled?: boolean;
 }
 
 export function EditorHeader({ 
@@ -32,6 +33,7 @@ export function EditorHeader({
   hasSuccessfulCompilation = false,
   isSharedView = false,
   currentFile,
+  isDisabled = false,
 }: EditorHeaderProps) {
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
@@ -42,14 +44,20 @@ export function EditorHeader({
         </div>
         <div>
           <h3 className="font-medium">
-            {currentFile ? `Editing: ${currentFile}` : 'Contract Editor'}
+            {isDisabled 
+              ? 'Editor' 
+              : currentFile 
+                ? `Editing: ${currentFile.split('/').pop()}` 
+                : 'Contract Editor'}
           </h3>
           <p className="text-xs text-muted-foreground">
-            {isSharedView 
-              ? "View-only contract code" 
-              : currentFile 
-                ? "Editing project file" 
-                : "Write your Stylus smart contract"}
+            {isDisabled
+              ? "Files will load once connection is restored"
+              : isSharedView 
+                ? "View-only contract code" 
+                : currentFile 
+                  ? currentFile.includes('/src/') ? 'Source file' : 'Project file'
+                  : "Write your Stylus smart contract"}
           </p>
         </div>
       </div>
@@ -58,11 +66,11 @@ export function EditorHeader({
       <div className="flex items-center gap-2">
         <Button
           onClick={onSave}
-          disabled={isSaving || isSharedView}
+          disabled={isSaving || isSharedView || isDisabled}
           variant="outline"
           size="sm"
           className="h-8 w-8 p-0"
-          title={isSaving ? "Saving..." : "Save"}
+          title={isDisabled ? "Backend connection required" : isSaving ? "Saving..." : "Save"}
         >
           {isSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -73,10 +81,11 @@ export function EditorHeader({
 
         <Button
           onClick={onCompile}
-          disabled={isCompiling || isSharedView}
+          disabled={isCompiling || isSharedView || isDisabled}
           variant="default"
           size="sm"
           className="gap-2 min-w-[90px]"
+          title={isDisabled ? "Backend connection required" : undefined}
         >
           {isCompiling ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -91,10 +100,11 @@ export function EditorHeader({
           <>
             <Button
               onClick={onAnalyzeWasm}
+              disabled={isDisabled}
               variant="outline"
               size="sm"
               className="gap-2 min-w-[110px]"
-              title="Analyze WASM binary size and optimization"
+              title={isDisabled ? "Backend connection required" : "Analyze WASM binary size and optimization"}
             >
               <BarChart3 className="h-4 w-4" />
               WASM
@@ -102,11 +112,11 @@ export function EditorHeader({
             
             <Button
               onClick={onDownloadAbi}
-              disabled={isLoadingAbi}
+              disabled={isLoadingAbi || isDisabled}
               variant="outline"
               size="sm"
               className="gap-2 min-w-[90px]"
-              title="View ABI interface"
+              title={isDisabled ? "Backend connection required" : "View ABI interface"}
             >
               {isLoadingAbi ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -127,8 +137,8 @@ export function EditorHeader({
             "gap-2 min-w-[90px]",
             hasSuccessfulCompilation && "bg-primary/10 text-primary hover:bg-primary/20"
           )}
-          disabled={!hasSuccessfulCompilation || isSharedView}
-          title={!hasSuccessfulCompilation ? "Compile your contract successfully before deploying" : undefined}
+          disabled={!hasSuccessfulCompilation || isSharedView || isDisabled}
+          title={isDisabled ? "Backend connection required" : !hasSuccessfulCompilation ? "Compile your contract successfully before deploying" : undefined}
         >
           <RocketIcon className="h-4 w-4" />
           Deploy

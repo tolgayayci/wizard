@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { API_URL } from '@/lib/config';
 
 const formSchema = z.object({
   name: z.string()
@@ -59,6 +60,8 @@ export function NewProjectDialog({
 }: NewProjectDialogProps) {
   const [activeTab, setActiveTab] = useState<'blank' | 'template'>('blank');
   const [selectedTemplate, setSelectedTemplate] = useState<typeof PROJECT_TEMPLATES[0] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -75,6 +78,8 @@ export function NewProjectDialog({
       form.reset();
       setSelectedTemplate(null);
       setActiveTab('blank');
+      setError(null);
+      setIsSubmitting(false);
     }
   }, [open, form]);
 
@@ -86,13 +91,34 @@ export function NewProjectDialog({
     }
   }, [selectedTemplate, form]);
 
-  const handleSubmit = (data: z.infer<typeof formSchema>) => {
+  const handleSubmit = async (data: z.infer<typeof formSchema>) => {
+    setError(null);
+    setIsSubmitting(true);
+
+    // Check backend connection first
+    try {
+      const healthCheck = await fetch(`${API_URL}/health`, { 
+        method: 'GET'
+      }).catch(() => null);
+      
+      if (!healthCheck || !healthCheck.ok) {
+        setError('Unable to connect to the server. We apologize for the inconvenience. Please try again in a few moments.');
+        setIsSubmitting(false);
+        return;
+      }
+    } catch (error) {
+      setError('Unable to connect to the server. We apologize for the inconvenience. Please try again in a few moments.');
+      setIsSubmitting(false);
+      return;
+    }
+
     // Don't allow creating project from OpenZeppelin templates
     if (selectedTemplate?.isOpenZeppelin) {
       toast({
         title: "Coming Soon",
         description: "OpenZeppelin templates will be available soon!",
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -101,21 +127,22 @@ export function NewProjectDialog({
       description: data.description?.trim() || '',
       template: selectedTemplate,
     });
+    setIsSubmitting(false);
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 rounded-lg bg-primary/10">
-              <Plus className="h-5 w-5 text-primary" />
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Plus className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <DialogTitle className="text-2xl">Create a New Project</DialogTitle>
-              <DialogDescription className="mt-1.5">
-                Get started by choosing a template or create from scratch
+              <DialogTitle>Create New Project</DialogTitle>
+              <DialogDescription className="mt-0.5 text-xs">
+                Start with a blank project or use a template
               </DialogDescription>
             </div>
           </div>
@@ -133,127 +160,117 @@ export function NewProjectDialog({
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="blank">
-            <div className="space-y-6">
-              {/* Project Info Card */}
-              <div className="p-6 border rounded-lg bg-muted/5">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2 rounded-md bg-primary/10">
-                    <FileCode2 className="h-4 w-4 text-primary" />
+          <TabsContent value="blank" className="mt-4">
+            <div className="space-y-4">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                  <div className="space-y-3">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">Project Name</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="my-awesome-project" 
+                              {...field}
+                              className="font-mono h-9"
+                              disabled={isSubmitting}
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            Only lowercase letters, numbers, and hyphens
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm">Description (Optional)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="A brief description"
+                              {...field}
+                              className="h-9"
+                              disabled={isSubmitting}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                  <div>
-                    <div className="font-medium">Blank Project</div>
-                    <div className="text-sm text-muted-foreground">
-                      Create a new Stylus smart contract from scratch
+
+                  {/* Error display */}
+                  {error && (
+                    <div className="flex items-center gap-2 p-3 border rounded-lg bg-red-500/5 border-red-500/20">
+                      <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                      <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
                     </div>
+                  )}
+
+                  <div className="flex justify-end gap-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => onOpenChange(false)}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      className="gap-2"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-4 w-4" />
+                          Create Project
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </div>
-
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-                    <div className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-2">
-                              <Terminal className="h-4 w-4" />
-                              Project Name
-                            </FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="my-awesome-project" 
-                                {...field}
-                                className="font-mono"
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Only lowercase letters, numbers, and hyphens are allowed
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="description"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="flex items-center gap-2">
-                              <Code2 className="h-4 w-4" />
-                              Description (Optional)
-                            </FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="A brief description of your project"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" className="gap-2">
-                        <Plus className="h-4 w-4" />
-                        Create Project
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </div>
-
-              {/* Quick Tips */}
-              <div className="p-4 rounded-lg border bg-blue-500/5 border-blue-500/20">
-                <div className="flex items-center gap-2 text-sm text-blue-500 mb-2">
-                  <AlertCircle className="h-4 w-4" />
-                  <span className="font-medium">Quick Tips</span>
-                </div>
-                <ul className="space-y-1 text-sm text-blue-500/80">
-                  <li className="flex items-center gap-2">
-                    <ArrowRight className="h-3.5 w-3.5" />
-                    Use descriptive names for better organization
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <ArrowRight className="h-3.5 w-3.5" />
-                    Add a clear description to help others understand your project
-                  </li>
-                </ul>
-              </div>
+                </form>
+              </Form>
             </div>
           </TabsContent>
 
-          <TabsContent value="template">
-            <div className="space-y-6">
+          <TabsContent value="template" className="mt-4">
+            <div className="space-y-4">
               {/* Template Selection */}
               <div className="border rounded-lg overflow-hidden">
-                <ScrollArea className="h-[400px]">
+                <ScrollArea className="h-[280px]">
                   <div className="divide-y">
                     {PROJECT_TEMPLATES.map((template, index) => (
                       <div
                         key={index}
                         onClick={() => !template.isOpenZeppelin && setSelectedTemplate(template)}
                         className={cn(
-                          "p-4 flex items-center gap-4 transition-colors",
+                          "p-3 flex items-center gap-3 transition-colors",
                           !template.isOpenZeppelin && "cursor-pointer hover:bg-accent",
                           selectedTemplate?.name === template.name && "bg-accent",
                           template.isOpenZeppelin && "opacity-75"
                         )}
                       >
-                        <div className="flex-none p-3 rounded-lg bg-primary/10">
-                          <template.icon className="h-5 w-5 text-primary" />
+                        <div className="flex-none p-2 rounded-lg bg-primary/10">
+                          <template.icon className="h-4 w-4 text-primary" />
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-medium">{template.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-sm">{template.name}</h3>
                             {template.isOpenZeppelin && (
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="bg-blue-500/10 text-blue-500">
@@ -265,13 +282,13 @@ export function NewProjectDialog({
                               </div>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground line-clamp-2">
+                          <p className="text-xs text-muted-foreground line-clamp-1">
                             {template.description}
                           </p>
                         </div>
 
                         <ArrowRight className={cn(
-                          "flex-none h-4 w-4 text-muted-foreground transition-opacity",
+                          "flex-none h-3.5 w-3.5 text-muted-foreground transition-opacity",
                           selectedTemplate?.name === template.name ? "opacity-100" : "opacity-0",
                           template.isOpenZeppelin && "opacity-0"
                         )} />
@@ -284,21 +301,19 @@ export function NewProjectDialog({
               {/* Project Details */}
               {selectedTemplate && (
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-                    <div className="space-y-4">
+                  <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                    <div className="space-y-3">
                       <FormField
                         control={form.control}
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="flex items-center gap-2">
-                              <Terminal className="h-4 w-4" />
-                              Project Name
-                            </FormLabel>
+                            <FormLabel className="text-sm">Project Name</FormLabel>
                             <FormControl>
                               <Input 
                                 {...field}
-                                className="font-mono"
+                                className="font-mono h-9"
+                                disabled={isSubmitting}
                               />
                             </FormControl>
                             <FormMessage />
@@ -311,12 +326,13 @@ export function NewProjectDialog({
                         name="description"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="flex items-center gap-2">
-                              <Code2 className="h-4 w-4" />
-                              Description (Optional)
-                            </FormLabel>
+                            <FormLabel className="text-sm">Description (Optional)</FormLabel>
                             <FormControl>
-                              <Input {...field} />
+                              <Input 
+                                {...field} 
+                                className="h-9"
+                                disabled={isSubmitting}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -324,17 +340,39 @@ export function NewProjectDialog({
                       />
                     </div>
 
+                    {/* Error display */}
+                    {error && (
+                      <div className="flex items-center gap-2 p-3 border rounded-lg bg-red-500/5 border-red-500/20">
+                        <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                        <span className="text-sm text-red-600 dark:text-red-400">{error}</span>
+                      </div>
+                    )}
+
                     <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => onOpenChange(false)}
+                        disabled={isSubmitting}
+                      >
                         Cancel
                       </Button>
                       <Button 
                         type="submit" 
                         className="gap-2"
-                        disabled={selectedTemplate.isOpenZeppelin}
+                        disabled={selectedTemplate.isOpenZeppelin || isSubmitting}
                       >
-                        <Sparkles className="h-4 w-4" />
-                        Create from Template
+                        {isSubmitting ? (
+                          <>
+                            <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            Creating...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-4 w-4" />
+                            Create from Template
+                          </>
+                        )}
                       </Button>
                     </div>
                   </form>

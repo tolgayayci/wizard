@@ -12,6 +12,7 @@ interface ABIMethodCardProps {
   onExecute: (method: ABIMethod) => void;
   isContractVerified: boolean;
   isSharedView?: boolean;
+  isDisabled?: boolean;
 }
 
 export function ABIMethodCard({ 
@@ -19,6 +20,7 @@ export function ABIMethodCard({
   onExecute, 
   isContractVerified,
   isSharedView = false,
+  isDisabled = false,
 }: ABIMethodCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -44,7 +46,7 @@ export function ABIMethodCard({
     <div
       className={cn(
         "group relative border rounded-lg p-3 transition-colors",
-        isContractVerified ? "hover:border-primary/50" : "opacity-50"
+        isDisabled ? "opacity-50" : isContractVerified ? "hover:border-primary/50" : "opacity-50"
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -81,7 +83,7 @@ export function ABIMethodCard({
               isHovered ? "opacity-100" : "opacity-0",
               "transition-opacity"
             )}
-            disabled={!isContractVerified}
+            disabled={!isContractVerified || isDisabled}
             onClick={() => onExecute(method)}
           >
             <PlayCircle className="h-3.5 w-3.5" />

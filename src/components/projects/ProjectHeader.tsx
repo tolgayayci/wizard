@@ -29,13 +29,18 @@ export function ProjectHeader({ onNewProject, onImportFromGitHub }: ProjectHeade
       <div className="flex items-center gap-3">
         <Button 
           onClick={onImportFromGitHub} 
-          variant="outline" 
+          variant="outline"
+          size="default" 
           className="gap-2"
         >
           <Github className="h-4 w-4" />
           Import from GitHub
         </Button>
-        <Button onClick={onNewProject} className="gap-2">
+        <Button 
+          onClick={onNewProject}
+          size="default" 
+          className="gap-2"
+        >
           <ArrowUpRight className="h-4 w-4" />
           New Project
         </Button>

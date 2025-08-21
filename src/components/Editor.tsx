@@ -8,7 +8,8 @@ import { WasmAnalysisModal } from './modals/WasmAnalysisModal';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
-import { FileCode2 } from 'lucide-react';
+import { FileCode2, WifiOff, AlertTriangle, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { 
   initializeMonaco, 
   defineEditorTheme, 
@@ -58,6 +59,7 @@ export function Editor({
   const [showWasmAnalysisModal, setShowWasmAnalysisModal] = useState(false);
   const [lintIssues, setLintIssues] = useState<LintIssue[]>([]);
   const [lintStatus, setLintStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const lintDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -98,6 +100,33 @@ export function Editor({
 
   // Get the effective theme (system or user preference)
   const effectiveTheme = theme === 'system' ? systemTheme : theme;
+
+  // Check backend connection
+  const checkBackendConnection = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/health`, { timeout: 5000 });
+      if (response.status === 200) {
+        setConnectionError(null);
+      }
+    } catch (error: any) {
+      console.error('Backend connection check failed:', error);
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || 
+          error.message?.includes('Network Error') || error.message?.includes('ECONNREFUSED')) {
+        setConnectionError('Backend connection failed. Please check if the server is running.');
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        setConnectionError('Request timed out. The server might be overloaded.');
+      } else {
+        setConnectionError('Unable to connect to backend server.');
+      }
+    }
+  }, []);
+
+  // Check backend connection on mount and periodically
+  useEffect(() => {
+    checkBackendConnection();
+    const interval = setInterval(checkBackendConnection, 30000); // Check every 30 seconds
+    return () => clearInterval(interval);
+  }, [checkBackendConnection]);
 
   const handleEditorDidMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
@@ -171,8 +200,15 @@ export function Editor({
       if (currentFile?.endsWith('.rs')) {
         debouncedLint(currentValue, true); // immediate = true for save
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving:', error);
+      
+      // Check if it's a connection error
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK' || 
+          error.message?.includes('Network Error')) {
+        setConnectionError('Backend connection failed. Please check if the server is running.');
+      }
+      
       toast({
         title: "Save failed",
         description: error instanceof Error ? error.message : "Failed to save your changes. Please try again.",
@@ -401,12 +437,12 @@ export function Editor({
   return (
     <div className="h-full flex flex-col bg-background border rounded-md overflow-hidden">
       <EditorHeader
-        onCompile={onCompile || (() => {})}
-        onDeploy={handleDeployClick}
-        onSave={handleSave}
-        onFormat={handleFormat}
-        onDownloadAbi={handleDownloadAbi}
-        onAnalyzeWasm={handleAnalyzeWasm}
+        onCompile={connectionError ? () => {} : (onCompile || (() => {}))}
+        onDeploy={connectionError ? () => {} : handleDeployClick}
+        onSave={connectionError ? () => {} : handleSave}
+        onFormat={connectionError ? () => {} : handleFormat}
+        onDownloadAbi={connectionError ? () => {} : handleDownloadAbi}
+        onAnalyzeWasm={connectionError ? () => {} : handleAnalyzeWasm}
         isCompiling={isCompiling || false}
         isSaving={isSaving}
         isFormatting={isFormatting}
@@ -414,8 +450,33 @@ export function Editor({
         hasSuccessfulCompilation={lastCompilation?.wasm_available || lastCompilation?.success}
         isSharedView={isSharedView}
         currentFile={currentFile}
+        isDisabled={!!connectionError}
       />
       <div className="flex-1 min-h-0 relative">
+        {connectionError ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-background z-50">
+            <div className="text-center space-y-4 max-w-md px-4">
+              <div className="p-2.5 bg-destructive/10 rounded-md w-fit mx-auto">
+                <WifiOff className="h-6 w-6 text-destructive" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm">Connection Problem</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {connectionError}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={checkBackendConnection}
+                className="gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Try Again
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <MonacoEditor
           height="100%"
           language={editorLanguage}
@@ -423,7 +484,7 @@ export function Editor({
           onChange={(value) => onChange(value || '')}
           options={{
             ...defaultEditorOptions,
-            readOnly: readOnly || isCompiling || isSharedView,
+            readOnly: readOnly || isCompiling || isSharedView || !!connectionError,
             theme: 'custom-theme', // Set initial theme
           }}
           onMount={handleEditorDidMount}
@@ -448,15 +509,18 @@ export function Editor({
         />
       </div>
       
-      {/* Status Bar */}
-      <EditorStatusBar
-        lintStatus={lintStatus}
-        lintIssueCount={lintIssues.length}
-        isFormatting={isFormatting}
-        onFormat={handleFormat}
-        currentFile={currentFile}
-        isSharedView={isSharedView}
-      />
+      {/* Status Bar - Hide when backend is disconnected */}
+      {!connectionError && (
+        <EditorStatusBar
+          lintStatus={lintStatus}
+          lintIssueCount={lintIssues.length}
+          isFormatting={isFormatting}
+          onFormat={handleFormat}
+          currentFile={currentFile}
+          isSharedView={isSharedView}
+          isDisabled={!!connectionError}
+        />
+      )}
       {projectId && !isSharedView && (
         <>
           <DeployDialog
