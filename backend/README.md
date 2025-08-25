@@ -1,223 +1,335 @@
-# Wizard Backend
+# Wizard Backend - Arbitrum Stylus Smart Contract IDE
 
-Rust-based backend service for the Wizard IDE, providing sandboxed compilation, deployment services, and project management for Arbitrum Stylus smart contracts. **Optimized for production deployment with robust external wallet support.**
+A high-performance Rust backend for the Wizard IDE, providing compilation, deployment, and development services for Arbitrum Stylus smart contracts.
 
-## 🚀 Features
+## 🏗️ Architecture Overview
 
-### Core Features
-- **Sandboxed Compilation**: Secure Docker-based environment for compiling Stylus contracts
-- **Dual Deployment Modes**: Support for both backend wallet and external wallet deployment
-- **Contract Activation**: Advanced activation checking with deployment bytecode validation
-- **Terminal Access**: WebSocket-based terminal emulation for running cargo commands
-- **File System Management**: Virtual file system API for project files
-- **GitHub Integration**: OAuth authentication and repository cloning
-- **Crates.io Integration**: Search and manage Rust dependencies
-- **Real-time Events**: WebSocket streaming of contract events
-- **Multi-user Support**: Isolated project environments per user
+The Wizard backend follows a **modular service-based architecture** with clear separation of concerns:
 
-### 🔐 External Wallet Support
-- **Activation Check Optimization**: Uses deployment bytecode for accurate activation status
-- **ProgramUpToDate Handling**: Correctly identifies already-activated contracts
-- **Error Categorization**: Comprehensive error handling for different wallet scenarios
-- **Network Validation**: Automatic network switching and validation
-- **Transaction Preparation**: Generates proper transaction data for external signing
-
-### 🚀 Performance Optimizations
-
-1. **Container Pooling System**
-   - Pre-warmed containers (5-10 pool size)
-   - Container reuse reduces cold starts by 80%
-   - Automatic lifecycle management
-   - Resource limits per container (512MB RAM, 1 CPU)
-
-2. **Compilation Caching**
-   - SHA256-based cache keys
-   - 30-minute TTL with LRU eviction
-   - Expected 70% cache hit rate
-   - In-memory cache for fast access
-
-3. **Resource Management**
-   - Per-user limits: 50MB storage, 3 concurrent compilations
-   - Global limits: Max 20 concurrent containers
-   - Automatic cleanup of old projects (>30 days)
-   - Project compression for inactive users
-
-4. **WebSocket Optimization**
-   - Connection pooling (max 200 connections)
-   - Message batching and compression
-   - Auto-disconnect idle connections (>5 min)
-   - Heartbeat/keepalive mechanism
-
-5. **Storage Optimization**
-   - Delta storage for file changes
-   - Shared base images for dependencies
-   - Max 2GB per user allocation
-   - Tmpfs for temporary compilation files
-
-## Prerequisites
-
-- Rust 1.75 or higher
-- Docker and Docker Compose
-- PostgreSQL (via Supabase)
-
-## Setup
-
-1. Copy the environment variables:
-```bash
-cp .env.example .env
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     HTTP/WebSocket Layer                     │
+├───────────────┬─────────────┬──────────────┬────────────────┤
+│   API Layer   │  WebSocket  │     Auth     │     Health     │
+├───────────────┴─────────────┴──────────────┴────────────────┤
+│                      Service Layer                           │
+├───────────────────────────────────────────────────────────────┤
+│                    Infrastructure Layer                       │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-2. Configure your environment variables in `.env`
+### Key Components
 
-3. Build the optimized sandbox image:
-```bash
-./scripts/build-sandbox.sh
+- **Actix Web Framework**: High-performance async web server
+- **Local Filesystem**: Persistent project storage
+- **WebSocket Support**: Real-time terminal sessions
+- **Rust Toolchain Integration**: Native cargo and rustfmt support
+- **Local Compilation**: Direct cargo-stylus compilation
+
+## 📁 Project Structure
+
+```
+backend/
+├── src/
+│   ├── api/              # REST API endpoints
+│   ├── config/           # Configuration management
+│   ├── services/         # Business logic services
+│   ├── utils/            # Utility functions
+│   ├── websocket/        # WebSocket handlers
+│   └── main.rs           # Application entry point
+├── scripts/              # Build and deployment scripts
+├── projects/             # User project storage
+└── target/               # Rust build artifacts
 ```
 
-4. Run the backend:
-```bash
-# Development mode
-cargo run
+## 🔧 Active Services
 
-# Production mode (optimized)
-cargo build --release
-./target/release/wizard-backend
-```
+### 1. **LocalCompilerService** (`services/local_compiler.rs`)
+Handles Rust/Stylus compilation using the local filesystem and cargo toolchain.
 
-## Performance Metrics
+**Key Features:**
+- Cargo project initialization
+- Stylus contract compilation
+- WASM optimization
+- ABI extraction (JSON and Solidity formats)
+- Build artifact management
 
-### Resource Usage (100 concurrent users)
-- **RAM**: 6-7GB total
-  - Application: 2GB
-  - Container pool: 2GB
-  - Cache: 1GB
-  - Buffer: 1-2GB
-- **Storage**: 200GB (2GB/user average)
-- **CPU**: 4 cores recommended
+**Dependencies:** `tokio`, `serde`, filesystem access
 
-### Response Times
-- Cached compilation: <100ms
-- Fresh compilation: 2-5s
-- File operations: <50ms
-- WebSocket latency: <10ms
+### 2. **LocalTerminalService** (`services/local_terminal.rs`)
+Manages WebSocket-based terminal sessions for interactive development.
 
-## API Endpoints
+**Key Features:**
+- PTY (pseudo-terminal) creation
+- Command execution in project context
+- ANSI escape sequence support
+- Session management with unique IDs
+- Real-time output streaming
 
-### Compilation & Deployment
-- `POST /api/compile` - Compile Stylus contract (backend mode)
-- `POST /api/compile-user` - Get deployment data from compiled WASM (external wallet mode)
-- `POST /api/check` - Check contract syntax
-- `POST /api/deploy` - Deploy compiled contract (backend wallet)
-- `POST /api/prepare-deployment` - Prepare deployment transaction (external wallet)
-- `POST /api/prepare-activation` - Prepare activation transaction (external wallet)
-- `POST /api/check-activation` - Check if contract is already activated
-- `POST /api/extract-wasm-size` - Extract compressed WASM size from deployment data
+**Dependencies:** `portable-pty`, `tokio`, WebSocket
+
+### 3. **FileSystemService** (`services/filesystem.rs`)
+Provides secure file management for user projects.
+
+**Key Features:**
+- Project file CRUD operations
+- Directory management
+- File tree generation
+- Path sanitization
+- Size limit enforcement
+
+**Dependencies:** `std::fs`, `tokio::fs`
+
+### 4. **FormatterService** (`services/formatter.rs`)
+Code formatting and linting using Rust toolchain.
+
+**Key Features:**
+- Rust code formatting (rustfmt)
+- Clippy linting
+- Custom formatting rules
+- Error highlighting
+
+**Dependencies:** `rustfmt`, `clippy`
+
+### 5. **CargoManager** (`services/cargo_manager.rs`)
+Dependency management for Rust projects.
+
+**Key Features:**
+- Package installation/removal
+- Cargo.toml manipulation
+- Dependency resolution
+- Version management
+
+**Dependencies:** `toml`, `cargo`
+
+### 6. **EmbedParser** (`services/embed_parser.rs`)
+Parses and validates embed data for project sharing.
+
+**Key Features:**
+- Base64 encoding/decoding
+- Data validation
+- Project metadata extraction
+- Template generation
+
+**Dependencies:** `base64`, `serde_json`
+
+## 🌐 API Endpoints
+
+### Compilation & Build
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/api/local/compile` | POST | Compile Rust/Stylus contract | ✅ Active |
+| `/api/local/export-abi` | POST | Export ABI in Solidity format | ⚠️ Limited |
+| `/api/local/export-abi-json` | POST | Export ABI in JSON format | ✅ Active |
+
+### Deployment
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/api/deploy/wizard` | POST | Wizard-managed deployment | ✅ Active |
+| `/api/compile-user` | POST | Prepare user deployment | ✅ Active |
+| `/api/prepare-deployment` | POST | Prepare deployment transaction | ✅ Active |
+| `/api/prepare-activation` | POST | Prepare activation transaction | ✅ Active |
+| `/api/check-activation` | POST | Check contract activation | ✅ Active |
+| `/api/deployments/save` | POST | Save deployment record | ✅ Active |
 
 ### File System
-- `GET /api/filesystem/tree` - Get project file tree
-- `POST /api/filesystem/read` - Read file content
-- `POST /api/filesystem/write` - Write file content
-- `POST /api/filesystem/create` - Create new file
-- `POST /api/filesystem/delete` - Delete file
-- `POST /api/filesystem/rename` - Rename file
-- `POST /api/filesystem/mkdir` - Create directory
 
-### Project Management
-- `GET /api/projects` - List user projects
-- `POST /api/projects` - Create new project
-- `PUT /api/projects/{id}` - Update project
-- `DELETE /api/projects/{id}` - Delete project
-- `GET /api/deployments` - List contract deployments
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/api/filesystem/read` | POST | Read file content | ✅ Active |
+| `/api/filesystem/write` | POST | Write file content | ✅ Active |
+| `/api/filesystem/tree` | GET | Get project file tree | ⚠️ Limited |
+| `/api/filesystem/create` | POST | Create new file | ⚠️ Limited |
+| `/api/filesystem/delete` | POST | Delete file | ⚠️ Limited |
+| `/api/filesystem/rename` | POST | Rename file | ⚠️ Limited |
+| `/api/filesystem/mkdir` | POST | Create directory | ⚠️ Limited |
+
+### Package Management
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/api/crates/search` | GET | Search crates.io | ✅ Active |
+| `/api/crates/info/{name}` | GET | Get crate information | ✅ Active |
+| `/api/crates/popular` | GET | Get popular crates | ✅ Active |
+| `/api/packages/install` | POST | Install package | ✅ Active |
+| `/api/packages/remove` | DELETE | Remove package | ⚠️ Limited |
+| `/api/packages/update` | PUT | Update package | ⚠️ Limited |
 
 ### GitHub Integration
-- `GET /auth/github/login` - Initiate GitHub OAuth
-- `GET /auth/github/callback` - GitHub OAuth callback
-- `POST /api/github/clone` - Clone repository
-- `GET /api/github/repos` - List user repositories
 
-### Crates.io
-- `GET /api/crates/search` - Search for crates
-- `GET /api/crates/info/{name}` - Get crate information
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/api/github/clone` | POST | Clone GitHub repository | ✅ Active |
+| `/api/github/repos` | GET | List user repositories | ⚠️ Limited |
+
+### Contract Verification
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/api/verification/verify` | POST | Verify on Arbiscan | ✅ Active |
+| `/api/verification/status` | POST | Check verification status | ✅ Active |
 
 ### WebSocket Endpoints
-- `WS /ws/terminal` - Terminal session
-- `WS /ws/events` - Contract event streaming
 
-## Architecture
+| Endpoint | Protocol | Description | Status |
+|----------|----------|-------------|--------|
+| `/ws/terminal` | WebSocket | Terminal session | ✅ Active |
 
-### Services
-- **DockerService**: Manages sandbox containers
-- **CompilerService**: Handles Stylus compilation
-- **FileSystemService**: Virtual file system operations
-- **TerminalService**: Terminal emulation and command execution
-- **EventService**: Contract event monitoring
+### System
 
-### Security
-- Sandboxed execution environment
-- Command whitelisting for terminal
-- Resource limits (CPU, memory, disk)
-- File path validation
-- Rate limiting
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/health` | GET | Health check | ✅ Active |
 
-## Development
+## 🔄 Data Flow
 
-### Running Tests
+### Compilation Flow
+```
+User Code → LocalCompilerService → Cargo Build → WASM Output → Optimization → Result
+```
+
+### Deployment Flow
+```
+Compiled WASM → Stylus Utils → Transaction Data → User Wallet → Blockchain
+```
+
+### Terminal Session Flow
+```
+WebSocket Connection → Session Creation → PTY Spawn → Command Execution → Output Stream
+```
+
+## 🔐 Security Features
+
+### Process Isolation
+- Separate process execution
+- Resource limits (CPU, memory)
+- Temporary filesystem
+- Clean build environments
+
+### Path Sanitization
+- Prevents directory traversal
+- User-scoped project isolation
+- File size limits
+- Project size quotas
+
+### Current Limitations
+- ⚠️ **No authentication middleware** - All endpoints are public
+- ⚠️ **No rate limiting** - Potential for abuse
+- ⚠️ **No request validation** - Basic input sanitization only
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Rust 1.75+
+- cargo-stylus CLI tool
+- Node.js (for frontend integration)
+
+### Environment Configuration
+
+Create a `.env` file based on `.env.example`:
+
 ```bash
+# Server Configuration
+HOST=0.0.0.0
+PORT=8080
+RUST_LOG=info
+
+# GitHub OAuth
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+
+# Blockchain Configuration
+SUPERPOSITION_RPC_URL=...
+CONTRACT_PRIVATE_KEY=...
+WIZARD_WALLET_ADDRESS=...
+
+# See .env.example for complete configuration
+```
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/wizard-backend.git
+cd wizard-backend
+
+# Install dependencies
+cargo build
+
+# Start the server
+cargo run
+```
+
+### Local Development
+
+```bash
+# Install cargo-stylus if needed
+cargo install cargo-stylus
+
+# Run in development mode
+cargo run
+```
+
+## 🧪 Testing
+
+```bash
+# Run unit tests
 cargo test
+
+# Run integration tests
+cargo test --test integration
+
+# Check code coverage
+cargo tarpaulin
 ```
 
-### Building for Production
-```bash
-cargo build --release
-```
+## 📊 Performance Optimizations
 
-### Docker Build
-```bash
-docker build -f docker/Dockerfile -t wizard-backend .
-docker build -f docker/sandbox/Dockerfile -t wizard-sandbox .
-```
+- **Async I/O**: Tokio runtime for non-blocking operations
+- **File Caching**: Compilation results cached temporarily
+- **Resource Limits**: Process resource management
+- **Concurrent Requests**: Multi-threaded request handling
 
-## Environment Variables
+## 🔮 Future Enhancements
 
-See `.env.example` for all required environment variables.
+### Planned Features
+- [ ] JWT-based authentication
+- [ ] Rate limiting middleware
+- [ ] WebSocket authentication
+- [ ] Process pooling for faster compilation
+- [ ] Distributed caching (Redis)
+- [ ] Metrics and monitoring (Prometheus)
+- [ ] Multi-chain support
+- [ ] Advanced debugging tools
 
-### Key Variables
+### Technical Debt
+- Remove remaining dead code markers
+- Implement proper error types
+- Add comprehensive logging
+- Improve test coverage
 
-#### Server Configuration
-- `HOST`: Server host (default: 0.0.0.0)
-- `PORT`: Server port (default: 8080)
-- `RUST_LOG`: Logging level (default: info)
+## 🤝 Contributing
 
-#### Database & Authentication
-- `DATABASE_URL`: PostgreSQL connection string
-- `SUPABASE_URL`: Supabase project URL
-- `SUPABASE_ANON_KEY`: Supabase anonymous key
-- `SUPABASE_SERVICE_KEY`: Supabase service key
-- `JWT_SECRET`: JWT signing secret (min 32 chars)
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
 
-#### Blockchain Configuration
-- `SUPERPOSITION_RPC_URL`: Superposition testnet RPC URL
-- `SUPERPOSITION_CHAIN_ID`: Chain ID (98985)
-- `SUPERPOSITION_EXPLORER_URL`: Block explorer URL
-- `CONTRACT_PRIVATE_KEY`: Backend wallet private key for deployments
-- `WIZARD_WALLET_ADDRESS`: Backend wallet address
+## 📄 License
 
-#### Docker & Sandbox
-- `DOCKER_HOST`: Docker daemon socket
-- `SANDBOX_IMAGE`: Docker image for sandbox (default: wizard-sandbox:latest)
-- `SANDBOX_CPU_LIMIT`: CPU limit for containers
-- `SANDBOX_MEMORY_LIMIT`: Memory limit for containers
-- `SANDBOX_TIMEOUT`: Container timeout in seconds
+[MIT License](LICENSE)
 
-#### GitHub OAuth
-- `GITHUB_CLIENT_ID`: GitHub OAuth app ID
-- `GITHUB_CLIENT_SECRET`: GitHub OAuth app secret
-- `GITHUB_REDIRECT_URI`: OAuth callback URL
+## 🆘 Support
 
-#### Storage & Limits
-- `STORAGE_PATH`: Project storage directory
-- `MAX_FILE_SIZE`: Maximum file size in bytes
-- `MAX_PROJECT_SIZE`: Maximum project size in bytes
-- `ALLOWED_ORIGINS`: CORS allowed origins
-- `RATE_LIMIT_PER_MINUTE`: Rate limit per minute
-- `RATE_LIMIT_PER_HOUR`: Rate limit per hour
+For issues and questions:
+- GitHub Issues: [wizard-backend/issues](https://github.com/your-org/wizard-backend/issues)
+- Documentation: [docs.wizard.dev](https://docs.wizard.dev)
+- Discord: [Join our community](https://discord.gg/wizard)
+
+---
+
+Built with ❤️ for the Arbitrum Stylus ecosystem

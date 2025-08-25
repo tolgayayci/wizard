@@ -1,7 +1,7 @@
 use actix_web::{web, HttpResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::services::compiler::{CompilationRequest, CompilationResult};
+use crate::services::local_compiler::{LocalCompilationRequest, LocalCompilationResult};
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -41,13 +41,20 @@ async fn compile_contract(
     data: web::Data<AppState>,
     req: web::Json<CompileRequest>,
 ) -> HttpResponse {
-    let compilation_req = CompilationRequest {
+    let compilation_req = LocalCompilationRequest {
         user_id: req.user_id.clone(),
         project_id: req.project_id.clone(),
-        code: req.code.clone(),
     };
 
-    match data.compiler.compile_contract(compilation_req).await {
+    // First save the code to the project
+    let _ = data.filesystem.write_file(
+        &req.user_id,
+        &req.project_id,
+        "src/lib.rs",
+        &req.code,
+    ).await;
+
+    match data.local_compiler.compile_project(compilation_req).await {
         Ok(result) => {
             HttpResponse::Ok().json(ApiResponse {
                 success: result.success,
@@ -61,7 +68,7 @@ async fn compile_contract(
             })
         }
         Err(e) => {
-            HttpResponse::InternalServerError().json(ApiResponse::<CompilationResult> {
+            HttpResponse::InternalServerError().json(ApiResponse::<LocalCompilationResult> {
                 success: false,
                 message: "Compilation error".to_string(),
                 data: None,
@@ -79,13 +86,21 @@ async fn check_contract(
     data: web::Data<AppState>,
     req: web::Json<CompileRequest>,
 ) -> HttpResponse {
-    let compilation_req = CompilationRequest {
+    // For check, we'll just compile without deploy
+    let compilation_req = LocalCompilationRequest {
         user_id: req.user_id.clone(),
         project_id: req.project_id.clone(),
-        code: req.code.clone(),
     };
 
-    match data.compiler.check_contract(compilation_req).await {
+    // First save the code to the project
+    let _ = data.filesystem.write_file(
+        &req.user_id,
+        &req.project_id,
+        "src/lib.rs",
+        &req.code,
+    ).await;
+
+    match data.local_compiler.compile_project(compilation_req).await {
         Ok(result) => {
             HttpResponse::Ok().json(ApiResponse {
                 success: result.success,
@@ -99,7 +114,7 @@ async fn check_contract(
             })
         }
         Err(e) => {
-            HttpResponse::InternalServerError().json(ApiResponse::<CompilationResult> {
+            HttpResponse::InternalServerError().json(ApiResponse::<LocalCompilationResult> {
                 success: false,
                 message: "Check error".to_string(),
                 data: None,

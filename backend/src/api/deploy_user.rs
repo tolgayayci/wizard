@@ -15,7 +15,6 @@ use crate::services::stylus_utils::{
     ARB_WASM_ADDRESS,
     create_deployer_calldata,
     create_constructor_calldata,
-    create_codehash_check_calldata,
     check_contract_activation,
     check_activation_with_deployment_bytecode,
 };
@@ -135,7 +134,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
 
 // Get deployment data from existing compiled WASM (following reference pattern)
 async fn compile_user_contract(
-    data: web::Data<AppState>,
+    _data: web::Data<AppState>,
     body: web::Json<CompileRequest>
 ) -> Result<HttpResponse> {
     info!("Getting deployment data from existing WASM file...");

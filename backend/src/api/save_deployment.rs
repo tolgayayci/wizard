@@ -16,6 +16,7 @@ pub struct SaveDeploymentRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct DeploymentData {
     pub success: bool,
     pub transaction: Option<TransactionData>,
@@ -139,7 +140,7 @@ fn is_wizard_wallet(address: &str) -> bool {
     }
     
     // Fallback: derive address from private key using a simple implementation
-    if let Ok(private_key) = std::env::var("CONTRACT_PRIVATE_KEY") {
+    if let Ok(_private_key) = std::env::var("CONTRACT_PRIVATE_KEY") {
         // For now, we'll use a known address derived from the private key
         // This should be replaced with proper key derivation
         let known_wizard_address = "0x4ea5ba5fdc9ea4c32e05ae5cc7a01e71e2e6e5c4"; // Replace with actual address

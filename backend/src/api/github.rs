@@ -223,6 +223,7 @@ fn read_main_source_file(path: &Path) -> Option<String> {
     None
 }
 
+#[allow(dead_code)]
 fn should_include_file(file_path: &str) -> bool {
     let file_name = std::path::Path::new(file_path)
         .file_name()
@@ -275,6 +276,7 @@ fn should_include_file(file_path: &str) -> bool {
     true
 }
 
+#[allow(dead_code)]
 fn should_include_directory(dir_path: &str) -> bool {
     let dir_name = std::path::Path::new(dir_path)
         .file_name()
@@ -298,6 +300,7 @@ fn should_include_directory(dir_path: &str) -> bool {
     }
 }
 
+#[allow(dead_code)]
 async fn fetch_and_save_contents(
     api_url: &str,
     data: &web::Data<AppState>,
@@ -306,6 +309,7 @@ async fn fetch_and_save_contents(
     path_prefix: &str,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     #[derive(Deserialize)]
+    #[allow(dead_code)]
     struct GitHubContent {
         name: String,
         path: String,

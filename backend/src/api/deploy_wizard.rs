@@ -129,7 +129,7 @@ async fn deploy_with_wizard(
             "--wasm-file", wasm_file_path.to_str().unwrap(),
             "--private-key", &private_key,
             "--endpoint", &rpc_url,
-            "--no-verify", // Skip Docker verification for local builds
+            "--no-verify", // Skip verification for local builds
         ])
         .current_dir(&project_path)
         .env("CARGO_TERM_COLOR", "never")

@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::services::formatter::{FormatRequest, FormatResult, LintRequest, LintResult};
 use crate::AppState;

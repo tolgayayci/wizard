@@ -316,6 +316,7 @@ crate-type = ["cdylib"]
         toml
     }
 
+    #[allow(dead_code)]
     pub fn encode_embed_data(data: &EmbedData) -> String {
         let json = serde_json::to_string(data).unwrap_or_default();
         general_purpose::STANDARD.encode(json)

@@ -1,7 +1,7 @@
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_ws::Message;
 use futures_util::StreamExt;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::services::local_terminal::LocalTerminalWebSocket;
 use crate::AppState;

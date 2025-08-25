@@ -1,6 +1,5 @@
 use anyhow::{Result, Context};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use toml_edit::{DocumentMut, Item, Table, value};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

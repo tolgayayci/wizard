@@ -3,7 +3,6 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 use crate::services::cargo_manager::CargoManager;
-use crate::services::filesystem::FileSystemService;
 use crate::AppState;
 
 use super::compile::{ApiError, ApiResponse};

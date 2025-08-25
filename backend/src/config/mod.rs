@@ -4,10 +4,7 @@ use std::env;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub server: ServerConfig,
-    pub database: DatabaseConfig,
-    pub github: GitHubConfig,
     pub jwt: JwtConfig,
-    pub docker: DockerConfig,
     pub blockchain: BlockchainConfig,
     pub storage: StorageConfig,
     pub cors: CorsConfig,
@@ -21,33 +18,9 @@ pub struct ServerConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DatabaseConfig {
-    pub url: String,
-    pub supabase_url: String,
-    pub supabase_anon_key: String,
-    pub supabase_service_key: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct GitHubConfig {
-    pub client_id: String,
-    pub client_secret: String,
-    pub redirect_uri: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JwtConfig {
     pub secret: String,
     pub expiration: i64,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DockerConfig {
-    pub host: String,
-    pub sandbox_image: String,
-    pub cpu_limit: f64,
-    pub memory_limit: String,
-    pub timeout: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -86,39 +59,12 @@ impl Config {
                     .parse()
                     .unwrap_or(8080),
             },
-            database: DatabaseConfig {
-                url: env::var("DATABASE_URL")?,
-                supabase_url: env::var("SUPABASE_URL")?,
-                supabase_anon_key: env::var("SUPABASE_ANON_KEY")?,
-                supabase_service_key: env::var("SUPABASE_SERVICE_KEY")?,
-            },
-            github: GitHubConfig {
-                client_id: env::var("GITHUB_CLIENT_ID")?,
-                client_secret: env::var("GITHUB_CLIENT_SECRET")?,
-                redirect_uri: env::var("GITHUB_REDIRECT_URI")?,
-            },
             jwt: JwtConfig {
                 secret: env::var("JWT_SECRET")?,
                 expiration: env::var("JWT_EXPIRATION")
                     .unwrap_or_else(|_| "86400".to_string())
                     .parse()
                     .unwrap_or(86400),
-            },
-            docker: DockerConfig {
-                host: env::var("DOCKER_HOST")
-                    .unwrap_or_else(|_| "unix:///var/run/docker.sock".to_string()),
-                sandbox_image: env::var("SANDBOX_IMAGE")
-                    .unwrap_or_else(|_| "wizard-sandbox:latest".to_string()),
-                cpu_limit: env::var("SANDBOX_CPU_LIMIT")
-                    .unwrap_or_else(|_| "1".to_string())
-                    .parse()
-                    .unwrap_or(1.0),
-                memory_limit: env::var("SANDBOX_MEMORY_LIMIT")
-                    .unwrap_or_else(|_| "512m".to_string()),
-                timeout: env::var("SANDBOX_TIMEOUT")
-                    .unwrap_or_else(|_| "300".to_string())
-                    .parse()
-                    .unwrap_or(300),
             },
             blockchain: BlockchainConfig {
                 rpc_url: env::var("SUPERPOSITION_RPC_URL")

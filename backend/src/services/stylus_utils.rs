@@ -1,12 +1,10 @@
-use alloy_primitives::{Address, U256, Bytes, keccak256, FixedBytes};
+use alloy_primitives::{Address, U256, Bytes, keccak256};
 use alloy_sol_types::{sol, SolCall};
 use alloy_provider::{Provider, ProviderBuilder};
 use alloy::rpc::types::{TransactionRequest};
-use std::io::{Write, Read};
+use std::io::Read;
 use brotli2::read::BrotliEncoder;
 use anyhow::{Result, Context};
-use wasmparser::{Parser, Payload};
-use wasm_encoder::{Module, RawSection, Section};
 
 // ArbWasm precompile address for Stylus activation
 pub const ARB_WASM_ADDRESS: Address = 
@@ -139,7 +137,6 @@ pub fn create_codehash_check_calldata(codehash: [u8; 32]) -> Vec<u8> {
     call.abi_encode().to_vec()
 }
 
-/// Stylus deployer interface for constructor support
 sol! {
     interface StylusDeployer {
         function deploy(

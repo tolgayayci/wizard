@@ -1,0 +1,91 @@
+# Multi-stage build for optimized production image
+FROM rust:1.75-alpine3.19 AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    musl-dev \
+    pkgconfig \
+    openssl-dev \
+    git \
+    perl \
+    make
+
+# Create app directory
+WORKDIR /build
+
+# Copy source files
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+
+# Build the application in release mode
+RUN cargo build --release
+
+# Download and install cargo-stylus
+RUN cargo install cargo-stylus --locked
+
+# Runtime stage - smaller final image
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    libgcc \
+    libstdc++ \
+    openssl \
+    ca-certificates \
+    git \
+    bash \
+    curl \
+    # Rust toolchain for compilation service
+    cargo \
+    rustc \
+    gcc \
+    musl-dev \
+    # Required for WASM operations
+    binaryen \
+    # Process monitoring
+    htop \
+    procps \
+    # Cleanup
+    && rm -rf /var/cache/apk/*
+
+# Install cargo-stylus and other tools
+COPY --from=builder /usr/local/cargo/bin/cargo-stylus /usr/local/bin/
+RUN cargo install cargo-stylus --locked && \
+    cargo install twiggy && \
+    cargo install wasm-opt && \
+    rm -rf /usr/local/cargo/registry/* /usr/local/cargo/git/*
+
+# Create non-root user for security
+RUN addgroup -g 1000 wizard && \
+    adduser -D -u 1000 -G wizard wizard && \
+    mkdir -p /app/storage /app/cargo-cache && \
+    chown -R wizard:wizard /app
+
+# Copy the built binary from builder stage
+COPY --from=builder /build/target/release/wizard-backend /app/wizard-backend
+
+# Set up volumes for persistent data
+VOLUME ["/app/storage", "/app/cargo-cache"]
+
+# Switch to non-root user
+USER wizard
+WORKDIR /app
+
+# Environment variables
+ENV RUST_LOG=info \
+    RUST_BACKTRACE=1 \
+    STORAGE_PATH=/app/storage \
+    CARGO_HOME=/app/cargo-cache \
+    PORT=8080 \
+    HOST=0.0.0.0
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose port
+EXPOSE 8080
+
+# Security: Drop all capabilities except what's needed
+# Run with minimal privileges
+CMD ["./wizard-backend"]

@@ -42,7 +42,9 @@ const ARBITRUM_SEPOLIA_CHAIN_ID: u64 = 421614;
 const ARBITRUM_SEPOLIA_ARBWASM: &str = "0x0000000000000000000000000000000000000071";
 
 // For mainnet (Arbitrum One)
+#[allow(dead_code)]
 const ARBITRUM_ONE_CHAIN_ID: u64 = 42161;
+#[allow(dead_code)]
 const ARBITRUM_ONE_ARBWASM: &str = "0x0000000000000000000000000000000000000071";
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -112,6 +114,7 @@ async fn prepare_deployment(
     })
 }
 
+#[allow(dead_code)]
 fn calculate_create2_address(deployer: &str, salt: &str, bytecode: &str) -> String {
     use sha3::{Digest, Keccak256};
     

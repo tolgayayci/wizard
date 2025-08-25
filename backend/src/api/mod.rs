@@ -1,6 +1,5 @@
+pub mod auth;
 pub mod compile;
-pub mod compilations;
-pub mod deploy;
 pub mod deploy_wizard;
 pub mod deploy_user;
 pub mod deployments;

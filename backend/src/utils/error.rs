@@ -10,6 +10,7 @@ pub struct ErrorResponse {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum AppError {
     BadRequest(String),
     Unauthorized(String),

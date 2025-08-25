@@ -11,6 +11,7 @@ use crate::AppState;
 use super::compile::{ApiError, ApiResponse};
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct CreateEmbedProjectRequest {
     pub embed_data: String, // Base64 encoded EmbedData
     pub user_id: String,
@@ -63,7 +64,7 @@ async fn create_embed_project(
     info!("Creating project from embed data for user {}", req.user_id);
 
     let parser = EmbedParser::new();
-    let cargo_manager = CargoManager::new();
+    let _cargo_manager = CargoManager::new();
     let filesystem = FileSystemService::new(&data.config.storage);
 
     // Decode and parse embed data

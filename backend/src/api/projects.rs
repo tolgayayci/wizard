@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
 
-use crate::services::filesystem::FileSystemService;
 use crate::AppState;
 
 use super::compile::{ApiError, ApiResponse};
@@ -58,7 +57,7 @@ async fn initialize_project(
         req.project_id, req.user_id
     );
 
-    let filesystem = &data.filesystem;
+    let _filesystem = &data.filesystem;
     
     // Validate UUIDs
     let user_id = match Uuid::parse_str(&req.user_id) {
