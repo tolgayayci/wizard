@@ -4,7 +4,6 @@ use std::env;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub server: ServerConfig,
-    pub jwt: JwtConfig,
     pub blockchain: BlockchainConfig,
     pub storage: StorageConfig,
     pub cors: CorsConfig,
@@ -15,12 +14,6 @@ pub struct Config {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct JwtConfig {
-    pub secret: String,
-    pub expiration: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -58,13 +51,6 @@ impl Config {
                     .unwrap_or_else(|_| "8080".to_string())
                     .parse()
                     .unwrap_or(8080),
-            },
-            jwt: JwtConfig {
-                secret: env::var("JWT_SECRET")?,
-                expiration: env::var("JWT_EXPIRATION")
-                    .unwrap_or_else(|_| "86400".to_string())
-                    .parse()
-                    .unwrap_or(86400),
             },
             blockchain: BlockchainConfig {
                 rpc_url: env::var("SUPERPOSITION_RPC_URL")

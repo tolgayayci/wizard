@@ -1,335 +1,159 @@
-# Wizard Backend - Arbitrum Stylus Smart Contract IDE
+# Wizard Backend
 
-A high-performance Rust backend for the Wizard IDE, providing compilation, deployment, and development services for Arbitrum Stylus smart contracts.
+Backend API server for the Wizard IDE - a browser-based development environment for Arbitrum Stylus smart contracts.
 
-## 🏗️ Architecture Overview
+## Prerequisites
 
-The Wizard backend follows a **modular service-based architecture** with clear separation of concerns:
+- Rust (latest stable version)
+- cargo-stylus CLI tool (for contract compilation)
 
+## Setup
+
+1. **Install Rust**
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+2. **Install cargo-stylus**
+   ```bash
+   cargo install cargo-stylus
+   ```
+
+3. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd wizard/backend
+   ```
+
+4. **Set up environment variables**
+   
+   Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
+   
+   Edit `.env` and configure:
+   - `JWT_SECRET`: JWT secret for authentication (min 32 chars)
+   - `CONTRACT_PRIVATE_KEY`: Private key for contract deployment
+   - `SUPERPOSITION_RPC_URL`: Blockchain RPC endpoint
+   - `STORAGE_PATH`: Path for project storage (default: /tmp/wizard-storage)
+
+5. **Build the project**
+   ```bash
+   cargo build --release
+   ```
+
+## Running the Server
+
+### Development mode
+```bash
+cargo run
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     HTTP/WebSocket Layer                     │
-├───────────────┬─────────────┬──────────────┬────────────────┤
-│   API Layer   │  WebSocket  │     Auth     │     Health     │
-├───────────────┴─────────────┴──────────────┴────────────────┤
-│                      Service Layer                           │
-├───────────────────────────────────────────────────────────────┤
-│                    Infrastructure Layer                       │
-└───────────────────────────────────────────────────────────────┘
+
+### Production mode
+```bash
+cargo run --release
 ```
 
-### Key Components
+Or run the compiled binary directly:
+```bash
+./target/release/wizard-backend
+```
 
-- **Actix Web Framework**: High-performance async web server
-- **Local Filesystem**: Persistent project storage
-- **WebSocket Support**: Real-time terminal sessions
-- **Rust Toolchain Integration**: Native cargo and rustfmt support
-- **Local Compilation**: Direct cargo-stylus compilation
+## API Endpoints
 
-## 📁 Project Structure
+The server runs on `http://localhost:8080` by default.
+
+### Health Check
+- `GET /health` - Server health status
+
+### Projects
+- `GET /api/projects` - List all projects
+- `POST /api/projects` - Create new project
+- `GET /api/projects/{id}` - Get project details
+- `PUT /api/projects/{id}` - Update project
+- `DELETE /api/projects/{id}` - Delete project
+
+### Compilation
+- `POST /api/compile` - Compile Rust code to WASM
+- `POST /api/format` - Format Rust code
+
+### Deployment
+- `POST /api/deploy/wizard` - Deploy using Wizard wallet
+- `POST /api/deploy/user` - Deploy using user wallet
+- `POST /api/save-deployment` - Save deployment info
+
+### WebSocket
+- `/ws/terminal` - Terminal WebSocket connection
+
+## Development
+
+### Run tests
+```bash
+cargo test
+```
+
+### Check code
+```bash
+cargo check
+```
+
+### Format code
+```bash
+cargo fmt
+```
+
+### Lint code
+```bash
+cargo clippy
+```
+
+## Project Structure
 
 ```
 backend/
 ├── src/
-│   ├── api/              # REST API endpoints
-│   ├── config/           # Configuration management
-│   ├── services/         # Business logic services
-│   ├── utils/            # Utility functions
-│   ├── websocket/        # WebSocket handlers
-│   └── main.rs           # Application entry point
-├── scripts/              # Build and deployment scripts
-├── projects/             # User project storage
-└── target/               # Rust build artifacts
+│   ├── api/           # REST API endpoints
+│   ├── config/        # Configuration
+│   ├── services/      # Business logic
+│   ├── utils/         # Utilities
+│   ├── websocket/     # WebSocket handlers
+│   └── main.rs        # Entry point
+├── Cargo.toml         # Dependencies
+└── .env              # Environment variables
 ```
 
-## 🔧 Active Services
+## Environment Variables
 
-### 1. **LocalCompilerService** (`services/local_compiler.rs`)
-Handles Rust/Stylus compilation using the local filesystem and cargo toolchain.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `JWT_SECRET` | JWT secret for authentication (min 32 chars) | Required |
+| `CONTRACT_PRIVATE_KEY` | Private key for contract deployment | Required |
+| `SUPERPOSITION_RPC_URL` | Blockchain RPC endpoint | Required |
+| `SUPERPOSITION_CHAIN_ID` | Blockchain chain ID | 98985 |
+| `SUPERPOSITION_EXPLORER_URL` | Blockchain explorer URL | Required |
+| `PORT` | Server port | 8080 |
+| `HOST` | Server host | 0.0.0.0 |
+| `RUST_LOG` | Log level | info |
+| `STORAGE_PATH` | Project storage path | /tmp/wizard-storage |
+| `ALLOWED_ORIGINS` | CORS allowed origins | http://localhost:5173,http://localhost:3000 |
+| `RATE_LIMIT_PER_MINUTE` | Rate limit per minute | 60 |
+| `RATE_LIMIT_PER_HOUR` | Rate limit per hour | 1000 |
 
-**Key Features:**
-- Cargo project initialization
-- Stylus contract compilation
-- WASM optimization
-- ABI extraction (JSON and Solidity formats)
-- Build artifact management
+## Troubleshooting
 
-**Dependencies:** `tokio`, `serde`, filesystem access
+### Port already in use
+If port 8080 is already in use, change the `PORT` in your `.env` file.
 
-### 2. **LocalTerminalService** (`services/local_terminal.rs`)
-Manages WebSocket-based terminal sessions for interactive development.
+### JWT Secret issues
+Ensure the `JWT_SECRET` is at least 32 characters long and kept secure.
 
-**Key Features:**
-- PTY (pseudo-terminal) creation
-- Command execution in project context
-- ANSI escape sequence support
-- Session management with unique IDs
-- Real-time output streaming
-
-**Dependencies:** `portable-pty`, `tokio`, WebSocket
-
-### 3. **FileSystemService** (`services/filesystem.rs`)
-Provides secure file management for user projects.
-
-**Key Features:**
-- Project file CRUD operations
-- Directory management
-- File tree generation
-- Path sanitization
-- Size limit enforcement
-
-**Dependencies:** `std::fs`, `tokio::fs`
-
-### 4. **FormatterService** (`services/formatter.rs`)
-Code formatting and linting using Rust toolchain.
-
-**Key Features:**
-- Rust code formatting (rustfmt)
-- Clippy linting
-- Custom formatting rules
-- Error highlighting
-
-**Dependencies:** `rustfmt`, `clippy`
-
-### 5. **CargoManager** (`services/cargo_manager.rs`)
-Dependency management for Rust projects.
-
-**Key Features:**
-- Package installation/removal
-- Cargo.toml manipulation
-- Dependency resolution
-- Version management
-
-**Dependencies:** `toml`, `cargo`
-
-### 6. **EmbedParser** (`services/embed_parser.rs`)
-Parses and validates embed data for project sharing.
-
-**Key Features:**
-- Base64 encoding/decoding
-- Data validation
-- Project metadata extraction
-- Template generation
-
-**Dependencies:** `base64`, `serde_json`
-
-## 🌐 API Endpoints
-
-### Compilation & Build
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/local/compile` | POST | Compile Rust/Stylus contract | ✅ Active |
-| `/api/local/export-abi` | POST | Export ABI in Solidity format | ⚠️ Limited |
-| `/api/local/export-abi-json` | POST | Export ABI in JSON format | ✅ Active |
-
-### Deployment
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/deploy/wizard` | POST | Wizard-managed deployment | ✅ Active |
-| `/api/compile-user` | POST | Prepare user deployment | ✅ Active |
-| `/api/prepare-deployment` | POST | Prepare deployment transaction | ✅ Active |
-| `/api/prepare-activation` | POST | Prepare activation transaction | ✅ Active |
-| `/api/check-activation` | POST | Check contract activation | ✅ Active |
-| `/api/deployments/save` | POST | Save deployment record | ✅ Active |
-
-### File System
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/filesystem/read` | POST | Read file content | ✅ Active |
-| `/api/filesystem/write` | POST | Write file content | ✅ Active |
-| `/api/filesystem/tree` | GET | Get project file tree | ⚠️ Limited |
-| `/api/filesystem/create` | POST | Create new file | ⚠️ Limited |
-| `/api/filesystem/delete` | POST | Delete file | ⚠️ Limited |
-| `/api/filesystem/rename` | POST | Rename file | ⚠️ Limited |
-| `/api/filesystem/mkdir` | POST | Create directory | ⚠️ Limited |
-
-### Package Management
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/crates/search` | GET | Search crates.io | ✅ Active |
-| `/api/crates/info/{name}` | GET | Get crate information | ✅ Active |
-| `/api/crates/popular` | GET | Get popular crates | ✅ Active |
-| `/api/packages/install` | POST | Install package | ✅ Active |
-| `/api/packages/remove` | DELETE | Remove package | ⚠️ Limited |
-| `/api/packages/update` | PUT | Update package | ⚠️ Limited |
-
-### GitHub Integration
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/github/clone` | POST | Clone GitHub repository | ✅ Active |
-| `/api/github/repos` | GET | List user repositories | ⚠️ Limited |
-
-### Contract Verification
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/api/verification/verify` | POST | Verify on Arbiscan | ✅ Active |
-| `/api/verification/status` | POST | Check verification status | ✅ Active |
-
-### WebSocket Endpoints
-
-| Endpoint | Protocol | Description | Status |
-|----------|----------|-------------|--------|
-| `/ws/terminal` | WebSocket | Terminal session | ✅ Active |
-
-### System
-
-| Endpoint | Method | Description | Status |
-|----------|--------|-------------|--------|
-| `/health` | GET | Health check | ✅ Active |
-
-## 🔄 Data Flow
-
-### Compilation Flow
-```
-User Code → LocalCompilerService → Cargo Build → WASM Output → Optimization → Result
-```
-
-### Deployment Flow
-```
-Compiled WASM → Stylus Utils → Transaction Data → User Wallet → Blockchain
-```
-
-### Terminal Session Flow
-```
-WebSocket Connection → Session Creation → PTY Spawn → Command Execution → Output Stream
-```
-
-## 🔐 Security Features
-
-### Process Isolation
-- Separate process execution
-- Resource limits (CPU, memory)
-- Temporary filesystem
-- Clean build environments
-
-### Path Sanitization
-- Prevents directory traversal
-- User-scoped project isolation
-- File size limits
-- Project size quotas
-
-### Current Limitations
-- ⚠️ **No authentication middleware** - All endpoints are public
-- ⚠️ **No rate limiting** - Potential for abuse
-- ⚠️ **No request validation** - Basic input sanitization only
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Rust 1.75+
-- cargo-stylus CLI tool
-- Node.js (for frontend integration)
-
-### Environment Configuration
-
-Create a `.env` file based on `.env.example`:
-
+### Build errors
+Make sure you have the latest Rust version:
 ```bash
-# Server Configuration
-HOST=0.0.0.0
-PORT=8080
-RUST_LOG=info
-
-# GitHub OAuth
-GITHUB_CLIENT_ID=...
-GITHUB_CLIENT_SECRET=...
-
-# Blockchain Configuration
-SUPERPOSITION_RPC_URL=...
-CONTRACT_PRIVATE_KEY=...
-WIZARD_WALLET_ADDRESS=...
-
-# See .env.example for complete configuration
+rustup update
 ```
 
-### Installation
+## License
 
-```bash
-# Clone the repository
-git clone https://github.com/your-org/wizard-backend.git
-cd wizard-backend
-
-# Install dependencies
-cargo build
-
-# Start the server
-cargo run
-```
-
-### Local Development
-
-```bash
-# Install cargo-stylus if needed
-cargo install cargo-stylus
-
-# Run in development mode
-cargo run
-```
-
-## 🧪 Testing
-
-```bash
-# Run unit tests
-cargo test
-
-# Run integration tests
-cargo test --test integration
-
-# Check code coverage
-cargo tarpaulin
-```
-
-## 📊 Performance Optimizations
-
-- **Async I/O**: Tokio runtime for non-blocking operations
-- **File Caching**: Compilation results cached temporarily
-- **Resource Limits**: Process resource management
-- **Concurrent Requests**: Multi-threaded request handling
-
-## 🔮 Future Enhancements
-
-### Planned Features
-- [ ] JWT-based authentication
-- [ ] Rate limiting middleware
-- [ ] WebSocket authentication
-- [ ] Process pooling for faster compilation
-- [ ] Distributed caching (Redis)
-- [ ] Metrics and monitoring (Prometheus)
-- [ ] Multi-chain support
-- [ ] Advanced debugging tools
-
-### Technical Debt
-- Remove remaining dead code markers
-- Implement proper error types
-- Add comprehensive logging
-- Improve test coverage
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
-
-## 📄 License
-
-[MIT License](LICENSE)
-
-## 🆘 Support
-
-For issues and questions:
-- GitHub Issues: [wizard-backend/issues](https://github.com/your-org/wizard-backend/issues)
-- Documentation: [docs.wizard.dev](https://docs.wizard.dev)
-- Discord: [Join our community](https://discord.gg/wizard)
-
----
-
-Built with ❤️ for the Arbitrum Stylus ecosystem
+See LICENSE file in the root directory.

@@ -3,13 +3,16 @@ import { CompilationResult, DeploymentResult } from './types';
 import { API_URL } from './config';
 
 // Create axios instance with default config
-const api = axios.create({
+export const apiClient = axios.create({
   baseURL: `${API_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
   withCredentials: true, // For cookies/session support
 });
+
+// Internal api reference for backward compatibility
+const api = apiClient;
 
 interface CompileRequest {
   user_id: string;

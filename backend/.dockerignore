@@ -1,0 +1,31 @@
+# Ignore build artifacts
+target/
+
+# Ignore environment files
+.env
+.env.local
+.env.production
+
+# Ignore git files
+.git/
+.gitignore
+
+# Ignore editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore local projects directory
+projects/
+
+# Ignore logs
+*.log
+
+# Ignore deployment scripts
+deploy.sh
+docker-compose.yml

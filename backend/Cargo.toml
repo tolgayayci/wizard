@@ -17,7 +17,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Authentication
-jsonwebtoken = "9.2"
 reqwest = { version = "0.11", features = ["json"] }
 
 # Utilities
@@ -41,9 +40,7 @@ walkdir = "2.4"
 futures-util = "0.3"
 
 # Security
-argon2 = "0.5"
 rand = "0.8"
-lazy_static = "1.4"
 
 # Configuration
 config = "0.14"

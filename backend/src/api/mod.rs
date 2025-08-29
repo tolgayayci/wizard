@@ -1,4 +1,3 @@
-pub mod auth;
 pub mod compile;
 pub mod deploy_wizard;
 pub mod deploy_user;

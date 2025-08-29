@@ -96,8 +96,9 @@ export function Terminal({ userId, projectId, className, onClose }: TerminalProp
     };
   }, [userId, projectId]);
 
-  const connectWebSocket = () => {
-    const ws = new WebSocket(`${WS_URL}/ws/terminal?user_id=${userId}&project_id=${projectId}`);
+  const connectWebSocket = async () => {
+    const wsUrl = `${WS_URL}/ws/terminal?user_id=${userId}&project_id=${projectId}`;
+    const ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
       setIsConnected(true);

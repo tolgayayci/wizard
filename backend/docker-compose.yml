@@ -1,0 +1,27 @@
+services:
+  wizard-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wizard-backend
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount projects directory from host to container
+      # Change /data/wizard-projects to your preferred host path
+      - /data/wizard-projects:/app/projects
+    env_file:
+      - .env.production
+    environment:
+      # Override storage path for container
+      - STORAGE_PATH=/app/projects
+      - HOST=0.0.0.0
+      - PORT=8080
+      - RUST_LOG=info
+    restart: unless-stopped
+    networks:
+      - wizard-network
+
+networks:
+  wizard-network:
+    driver: bridge

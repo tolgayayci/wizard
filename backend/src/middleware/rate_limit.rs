@@ -1,6 +1,6 @@
 use actix_web::{
     dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, HttpResponse,
+    Error,
     error::ErrorTooManyRequests,
 };
 use futures_util::future::{ok, LocalBoxFuture, Ready};
@@ -8,7 +8,6 @@ use std::{
     collections::HashMap,
     rc::Rc,
     sync::Mutex,
-    task::{Context, Poll},
     time::{Duration, Instant},
 };
 
@@ -148,39 +147,5 @@ where
             // Continue with request
             service.call(req).await
         })
-    }
-}
-
-// Per-endpoint rate limiter with different limits
-#[derive(Clone)]
-pub struct EndpointRateLimiter {
-    limits: HashMap<String, usize>,
-    default_limit: usize,
-}
-
-impl EndpointRateLimiter {
-    pub fn new() -> Self {
-        let mut limits = HashMap::new();
-        
-        // Configure per-endpoint limits
-        limits.insert("/api/compile".to_string(), 10);  // 10 requests per minute
-        limits.insert("/api/deploy".to_string(), 5);    // 5 requests per minute
-        limits.insert("/api/auth/login".to_string(), 5); // 5 login attempts per minute
-        limits.insert("/api/auth/register".to_string(), 3); // 3 registrations per minute
-        
-        Self {
-            limits,
-            default_limit: 60, // Default 60 requests per minute
-        }
-    }
-
-    pub fn get_limit(&self, path: &str) -> usize {
-        // Find the most specific matching path
-        self.limits
-            .iter()
-            .filter(|(endpoint, _)| path.starts_with(endpoint.as_str()))
-            .map(|(_, &limit)| limit)
-            .min() // Use the most restrictive limit
-            .unwrap_or(self.default_limit)
     }
 }

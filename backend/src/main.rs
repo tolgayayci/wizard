@@ -1,18 +1,18 @@
 use actix_cors::Cors;
-use actix_web::{middleware, web, App, HttpServer};
+use actix_web::{middleware as actix_middleware, web, App, HttpServer};
 use dotenv::dotenv;
 use log::info;
 use std::path::PathBuf;
 
 mod api;
+mod middleware;
 mod config;
-mod middleware as auth_middleware;
 mod services;
 mod utils;
 mod websocket;
 
 use config::Config;
-use auth_middleware::{JwtAuth, RateLimiter};
+use middleware::RateLimiter;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -57,31 +57,20 @@ async fn main() -> std::io::Result<()> {
             .expose_headers(vec![actix_web::http::header::CONTENT_TYPE])
             .max_age(3600);
 
-        // Create JWT auth middleware
-        let jwt_auth = JwtAuth::new(config.jwt.secret.clone())
-            .with_skip_paths(vec![
-                "/health".to_string(),
-                "/api/auth/login".to_string(),
-                "/api/auth/register".to_string(),
-                "/api/auth/refresh".to_string(),
-            ]);
-
         // Create rate limiter
         let rate_limiter = RateLimiter::new(config.rate_limit.per_minute as usize);
 
         App::new()
             .app_data(app_data.clone())
             .wrap(cors)
-            .wrap(middleware::Logger::default())
+            .wrap(actix_middleware::Logger::default())
             .wrap(rate_limiter)
-            .wrap(jwt_auth)
             .service(
                 web::scope("/health")
                     .configure(api::health::configure),
             )
             .service(
                 web::scope("/api")
-                    .configure(api::auth::configure)
                     .configure(api::compile::configure)
                     .configure(api::deploy_wizard::configure)
                     .configure(api::deploy_user::configure)

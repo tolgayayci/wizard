@@ -20,8 +20,7 @@ import { PackageManagerDialog } from '@/components/packages/PackageManagerDialog
 import { FileExplorerView } from '@/components/explorer/FileExplorerView';
 import { Terminal, TerminalRef } from '@/components/views/Terminal';
 import { WalletButton } from '@/components/wallet/WalletButton';
-import axios from 'axios';
-import { API_URL } from '@/lib/config';
+import { apiClient } from '@/lib/api';
 
 const VIEWS = [
   { id: 'explorer', title: 'Files', icon: FolderTree },
@@ -184,7 +183,7 @@ export function EditorPage() {
     
     setIsLoadingFile(true);
     try {
-      const response = await axios.post(`${API_URL}/api/filesystem/read`, {
+      const response = await apiClient.post('/filesystem/read', {
         user_id: user.id,
         project_id: project.id,
         path: filePath,

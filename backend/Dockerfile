@@ -1,0 +1,46 @@
+# Use official Rust image with specific version
+FROM rust:1.88.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-stylus for smart contract compilation
+RUN cargo install cargo-stylus --version 0.6.3
+
+# Create app directory
+WORKDIR /app
+
+# Create non-root user for security
+RUN useradd -m -u 1000 -s /bin/bash wizard && \
+    chown -R wizard:wizard /app
+
+# Copy project files
+COPY --chown=wizard:wizard Cargo.toml Cargo.lock ./
+COPY --chown=wizard:wizard src ./src
+
+# Build the application
+RUN cargo build --release
+
+# Create projects directory inside container
+RUN mkdir -p /app/projects && \
+    chown -R wizard:wizard /app/projects
+
+# Switch to non-root user
+USER wizard
+
+# Expose port
+EXPOSE 8080
+
+# Set environment variables
+ENV RUST_LOG=info
+ENV HOST=0.0.0.0
+ENV PORT=8080
+ENV STORAGE_PATH=/app/projects
+
+# Run the backend
+CMD ["./target/release/wizard-backend"]

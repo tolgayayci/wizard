@@ -66,8 +66,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import axios from 'axios';
-import { API_URL } from '@/lib/config';
+import { apiClient } from '@/lib/api';
 
 interface FileNode {
   name: string;
@@ -141,7 +140,7 @@ export function FileExplorer({
     }
     
     try {
-      const response = await axios.get(`${API_URL}/api/filesystem/tree`, {
+      const response = await apiClient.get('/filesystem/tree', {
         params: { user_id: userId, project_id: projectId },
         timeout: 10000, // 10 second timeout
       });
@@ -284,7 +283,7 @@ export function FileExplorer({
   const handleCreateFile = async () => {
     try {
       const fullPath = dialogPath ? `${dialogPath}/${dialogValue}` : dialogValue;
-      await axios.post(`${API_URL}/api/filesystem/create`, {
+      await apiClient.post('/filesystem/create', {
         user_id: userId,
         project_id: projectId,
         path: fullPath,
@@ -308,7 +307,7 @@ export function FileExplorer({
   const handleCreateFolder = async () => {
     try {
       const fullPath = dialogPath ? `${dialogPath}/${dialogValue}` : dialogValue;
-      await axios.post(`${API_URL}/api/filesystem/mkdir`, {
+      await apiClient.post('/filesystem/mkdir', {
         user_id: userId,
         project_id: projectId,
         path: fullPath,
@@ -360,7 +359,7 @@ export function FileExplorer({
         projectId
       });
 
-      await axios.post(`${API_URL}/api/filesystem/rename`, {
+      await apiClient.post('/filesystem/rename', {
         user_id: userId,
         project_id: projectId,
         old_path: oldRelativePath,
@@ -396,7 +395,7 @@ export function FileExplorer({
         projectId
       });
 
-      await axios.post(`${API_URL}/api/filesystem/rename`, {
+      await apiClient.post('/filesystem/rename', {
         user_id: userId,
         project_id: projectId,
         old_path: oldRelativePath,
@@ -431,7 +430,7 @@ export function FileExplorer({
         projectId
       });
 
-      await axios.post(`${API_URL}/api/filesystem/delete`, {
+      await apiClient.post('/filesystem/delete', {
         user_id: userId,
         project_id: projectId,
         path: relativePath,
@@ -510,7 +509,7 @@ export function FileExplorer({
         projectId
       });
 
-      const response = await axios.post(`${API_URL}/api/filesystem/move`, {
+      const response = await apiClient.post('/filesystem/move', {
         user_id: userId,
         project_id: projectId,
         source_path: sourceRelativePath,
@@ -546,7 +545,7 @@ export function FileExplorer({
         projectId
       });
 
-      const response = await axios.post(`${API_URL}/api/filesystem/move`, {
+      const response = await apiClient.post('/filesystem/move', {
         user_id: userId,
         project_id: projectId,
         source_path: sourceRelativePath,
