@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useAccount, useChainId, useSwitchChain, useBalance } from 'wagmi';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { useAccount, useChainId, useSwitchChain, useBalance, useDisconnect } from 'wagmi';
 import { Chain } from 'viem';
 import { 
   DeploymentMode, 
@@ -37,6 +37,9 @@ interface WalletContextState {
   switchNetwork: (chainId: number) => Promise<void>;
   isSwitchingNetwork: boolean;
   
+  // Wallet management
+  disconnectWallet: () => Promise<void>;
+  
   // Utilities
   getNetworkName: (chainId: number) => string;
   getExplorerUrl: (type: 'address' | 'tx', value: string) => string;
@@ -56,18 +59,20 @@ const DEPLOYMENT_MODE_KEY = 'wizard-deployment-mode';
 const CUSTOM_NETWORKS_KEY = 'wizard-custom-networks';
 
 export function WalletProvider({ children }: WalletProviderProps) {
-  // Wagmi hooks
-  const { isConnected, address } = useAccount();
-  const chainId = useChainId();
-  const { switchChain, isPending: isSwitchingNetwork } = useSwitchChain();
-  const { data: balanceData } = useBalance({
-    address: address,
-  });
-
-  // Local state
+  // Local state - Initialize first to avoid reference errors
   const [deploymentMode, setDeploymentModeState] = useState<DeploymentMode>('wizard');
   const [selectedNetwork, setSelectedNetworkState] = useState<Chain>(defaultChain);
   const [customNetworks, setCustomNetworks] = useState<Chain[]>([]);
+  const [prevConnectionState, setPrevConnectionState] = useState(false);
+  
+  // Wagmi hooks
+  const { isConnected, address, connector } = useAccount();
+  const chainId = useChainId();
+  const { switchChain, isPending: isSwitchingNetwork, error: switchError } = useSwitchChain();
+  const { disconnect } = useDisconnect();
+  const { data: balanceData } = useBalance({
+    address: address,
+  });
 
   // Load saved settings from localStorage
   useEffect(() => {
@@ -111,28 +116,75 @@ export function WalletProvider({ children }: WalletProviderProps) {
     saveCustomNetworks(updated);
   };
 
+  // Get all available networks (built-in + custom) - moved up to be available early
+  const availableNetworks = [
+    ...supportedChains,
+    ...customNetworks,
+  ].filter(Boolean) as Chain[];
+
   // Set selected network
   const setSelectedNetwork = (network: Chain) => {
     setSelectedNetworkState(network);
   };
 
-  // Switch network
-  const switchNetwork = async (chainId: number) => {
-    if (!isConnected) return;
+  // Switch network with improved error handling
+  const switchNetwork = useCallback(async (targetChainId: number) => {
+    // For wizard mode, just update the selected network
+    if (deploymentMode === 'wizard') {
+      const network = availableNetworks.find(n => n.id === targetChainId);
+      if (network) {
+        setSelectedNetworkState(network);
+      }
+      return;
+    }
+    
+    // For user mode, switch the actual wallet network
+    if (!isConnected) {
+      console.warn('Cannot switch network: wallet not connected');
+      return;
+    }
     
     try {
-      await switchChain({ chainId });
-    } catch (error) {
+      // Attempt to switch chain
+      await switchChain({ chainId: targetChainId });
+      
+      // Update selected network after successful switch
+      const network = availableNetworks.find(n => n.id === targetChainId);
+      if (network) {
+        setSelectedNetworkState(network);
+      }
+    } catch (error: any) {
       console.error('Failed to switch network:', error);
-      throw error;
+      
+      // Handle specific error cases
+      if (error?.code === 4902 || error?.message?.includes('Unrecognized chain')) {
+        // Chain not added to wallet - could prompt to add it
+        console.warn('Chain not configured in wallet');
+      } else if (error?.code === 4001) {
+        // User rejected the switch
+        console.warn('User rejected network switch');
+      }
+      
+      // Don't throw, just log the error
+      // This prevents the app from crashing on network switch failures
     }
-  };
-
-  // Get all available networks (built-in + custom)
-  const availableNetworks = [
-    ...supportedChains,
-    ...customNetworks,
-  ].filter(Boolean) as Chain[];
+  }, [deploymentMode, isConnected, switchChain, availableNetworks]);
+  
+  // Disconnect wallet and switch to wizard mode
+  const disconnectWallet = useCallback(async () => {
+    try {
+      // Disconnect the wallet
+      if (disconnect) {
+        await disconnect();
+      }
+      
+      // Switch to wizard mode
+      setDeploymentMode('wizard');
+      setSelectedNetworkState(defaultChain);
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error);
+    }
+  }, [disconnect]);
 
   // Check if wizard wallet is available for current network
   const isWizardWalletAvailable = isWizardWalletSupported(selectedNetwork.id);
@@ -173,16 +225,40 @@ export function WalletProvider({ children }: WalletProviderProps) {
         }
       }
     }
-  }, [chainId, isConnected, deploymentMode]);
+  }, [chainId, isConnected, deploymentMode, availableNetworks]);
 
-  // Handle wallet disconnection
+  // Handle wallet connection/disconnection events
   useEffect(() => {
-    if (!isConnected && deploymentMode === 'user') {
+    // Detect disconnection (was connected, now not connected)
+    if (prevConnectionState && !isConnected && deploymentMode === 'user') {
+      console.log('Wallet disconnected, switching to wizard mode');
       // When wallet disconnects while in user mode, switch back to wizard mode
       setDeploymentMode('wizard');
       setSelectedNetworkState(defaultChain);
     }
-  }, [isConnected, deploymentMode]);
+    
+    // Update previous connection state
+    setPrevConnectionState(isConnected);
+  }, [isConnected, prevConnectionState, deploymentMode]);
+  
+  // Listen for wallet events (network changes, account changes)
+  useEffect(() => {
+    if (!connector) return;
+    
+    const handleChange = () => {
+      // Force a re-render when wallet state changes
+      console.log('Wallet state changed');
+    };
+    
+    // Listen to connector events if available
+    if (connector.emitter) {
+      connector.emitter.on('change', handleChange);
+      
+      return () => {
+        connector.emitter.off('change', handleChange);
+      };
+    }
+  }, [connector]);
 
   const contextValue: WalletContextState = {
     // Connection state
@@ -209,6 +285,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
     // Network switching
     switchNetwork,
     isSwitchingNetwork,
+    
+    // Wallet management
+    disconnectWallet,
     
     // Utilities
     getNetworkName,

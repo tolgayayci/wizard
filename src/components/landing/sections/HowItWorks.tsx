@@ -64,25 +64,13 @@ export function HowItWorks() {
               </div>
             </div>
             
-            <div className="relative">
-              <div className="bg-gray-50 rounded-2xl p-8">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-center gap-4 mb-6">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg text-sm font-medium">
-                      <Mail className="h-4 w-4" />
-                      Continue with Email
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium">
-                      <Github className="h-4 w-4" />
-                      Continue with GitHub
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="h-12 bg-gray-100 rounded-lg animate-pulse" />
-                    <div className="h-12 bg-gray-100 rounded-lg animate-pulse delay-75" />
-                    <div className="h-12 bg-gray-100 rounded-lg animate-pulse delay-150" />
-                  </div>
-                </div>
+            <div className="relative flex justify-center lg:justify-start">
+              <div className="w-11/12 lg:w-10/12 rounded-lg overflow-hidden shadow-2xl">
+                <img 
+                  src="/images/landing-1.png" 
+                  alt="Import from GitHub" 
+                  className="w-full h-auto"
+                />
               </div>
             </div>
           </div>
@@ -92,42 +80,12 @@ export function HowItWorks() {
         <div className="mb-32">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
             <div className="order-2 lg:order-1">
-              <div className="bg-gray-50 rounded-2xl p-8">
-                <div className="bg-gray-900 rounded-xl shadow-sm overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-3 bg-gray-800 border-b border-gray-700">
-                    <div className="flex gap-1.5">
-                      <div className="w-3 h-3 rounded-full bg-red-500" />
-                      <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                      <div className="w-3 h-3 rounded-full bg-green-500" />
-                    </div>
-                    <div className="flex-1 text-center">
-                      <span className="text-xs text-gray-400">thewizard.app</span>
-                    </div>
-                  </div>
-                  <div className="flex">
-                    <div className="w-48 bg-gray-800 border-r border-gray-700 p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <FolderOpen className="h-4 w-4 text-gray-400" />
-                        <span className="text-xs text-gray-400">Explorer</span>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="h-6 bg-gray-700 rounded animate-pulse" />
-                        <div className="h-6 bg-gray-700 rounded animate-pulse delay-75" />
-                        <div className="h-6 bg-gray-700 rounded animate-pulse delay-150" />
-                      </div>
-                    </div>
-                    <div className="flex-1 p-4">
-                      <div className="space-y-2">
-                        <div className="h-4 bg-gray-700 rounded w-3/4 animate-pulse" />
-                        <div className="h-4 bg-gray-700 rounded w-full animate-pulse delay-75" />
-                        <div className="h-4 bg-gray-700 rounded w-5/6 animate-pulse delay-150" />
-                      </div>
-                      <button className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-medium">
-                        Deploy Contract
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              <div className="rounded-lg overflow-hidden shadow-2xl">
+                <img 
+                  src="/images/landing-2.png" 
+                  alt="Deploy Contract" 
+                  className="w-full h-auto"
+                />
               </div>
             </div>
             
@@ -227,33 +185,12 @@ export function HowItWorks() {
             </div>
             
             <div className="relative">
-              <div className="bg-gray-50 rounded-2xl p-8">
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-gray-900">Contract Methods</span>
-                    <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">Deployed</span>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="p-3 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">balanceOf</span>
-                        <span className="text-xs text-gray-500">view</span>
-                      </div>
-                    </div>
-                    <div className="p-3 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">transfer</span>
-                        <span className="text-xs text-gray-500">write</span>
-                      </div>
-                    </div>
-                    <div className="p-3 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">approve</span>
-                        <span className="text-xs text-gray-500">write</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="rounded-lg overflow-hidden shadow-2xl">
+                <img 
+                  src="/images/landing-3.png" 
+                  alt="Contract Interface" 
+                  className="w-full h-auto"
+                />
               </div>
             </div>
           </div>

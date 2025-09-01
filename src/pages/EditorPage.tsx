@@ -334,14 +334,43 @@ export function EditorPage() {
   const handleCompile = async () => {
     if (!project || isCompiling || !user) return;
 
+    // Save the current file first if one is selected
+    if (selectedFile) {
+      try {
+        const saveResponse = await axios.post(`${API_URL}/api/filesystem/write`, {
+          user_id: user.id,
+          project_id: project.id,
+          path: selectedFile,
+          content: project.code,
+        });
+        
+        if (!saveResponse.data.success) {
+          toast({
+            title: 'Save Failed',
+            description: 'Could not save file before compilation',
+            variant: 'destructive',
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error saving file before compilation:', error);
+        toast({
+          title: 'Save Error',
+          description: 'Failed to save file before compilation',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setIsCompiling(true);
 
     try {
-      // Execute compilation via API with current code
+      // Execute compilation via API (reads from saved files)
       const response = await axios.post(`${API_URL}/api/local/compile`, {
         user_id: user.id,
         project_id: project.id,
-        code: project.code, // Include the current code
+        // No code field - backend will read from filesystem
       });
 
       if (response.data.success && response.data.data) {
@@ -714,6 +743,7 @@ export function EditorPage() {
               {/* Wallet connection */}
               <WalletButton />
               
+              {/* Share button hidden for now
               <div className="h-8 w-px bg-border" />
               
               <Button
@@ -727,6 +757,7 @@ export function EditorPage() {
                 )} />
                 <Share2 className="h-[1.2rem] w-[1.2rem]" />
               </Button>
+              */}
 
               <ThemeToggle />
               <UserNav />

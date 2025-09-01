@@ -74,7 +74,18 @@ impl FormatterService {
         let original_content = fs::read_to_string(&file_path).await?;
 
         // Run rustfmt on the file
-        let output = Command::new("rustfmt")
+        let mut fmt_cmd = Command::new("rustfmt");
+        
+        // Check if running in Docker container (wizard user exists)
+        if std::path::Path::new("/home/wizard").exists() {
+            // Docker environment - use wizard user paths
+            fmt_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+        }
+        // For local development, use system defaults (no env override needed)
+        
+        let output = fmt_cmd
             .arg("--edition")
             .arg("2021")
             .arg("--emit")
@@ -128,7 +139,18 @@ impl FormatterService {
         }
 
         // Run clippy with JSON output for better parsing
-        let output = Command::new("cargo")
+        let mut clippy_cmd = Command::new("cargo");
+        
+        // Check if running in Docker container (wizard user exists)
+        if std::path::Path::new("/home/wizard").exists() {
+            // Docker environment - use wizard user paths
+            clippy_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+        }
+        // For local development, use system defaults (no env override needed)
+        
+        let output = clippy_cmd
             .args(&[
                 "clippy",
                 "--message-format=json",

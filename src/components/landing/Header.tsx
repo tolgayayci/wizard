@@ -38,11 +38,7 @@ export function Header() {
     }
   };
 
-  const navItems = [
-    { label: 'Features', id: 'features' },
-    { label: 'Networks', id: 'networks' },
-    { label: 'Developers', id: 'social-proof' },
-  ];
+  const navItems: Array<{ label: string; id: string }> = [];
 
   return (
     <>
@@ -67,28 +63,11 @@ export function Header() {
               </div>
               <div>
                 <span className="text-2xl font-bold text-gray-900">Wizard</span>
-                <span className="hidden sm:inline text-sm text-gray-500 ml-2">for Arbitrum Stylus</span>
               </div>
             </div>
             
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleSectionClick(item.id)}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                    isScrolled 
-                      ? 'text-gray-700 hover:text-gray-900 hover:bg-gray-50' 
-                      : 'text-gray-700 hover:text-gray-900 hover:bg-white/50'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-              
-              <div className="w-px h-6 bg-gray-300 mx-2" />
-              
               <a 
                 href="https://docs.arbitrum.io/stylus"
                 target="_blank"
@@ -176,18 +155,6 @@ export function Header() {
 
             {/* Mobile Navigation */}
             <nav className="space-y-1">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleSectionClick(item.id)}
-                  className="block w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg font-medium"
-                >
-                  {item.label}
-                </button>
-              ))}
-              
-              <div className="my-4 border-t border-gray-200" />
-              
               <a 
                 href="https://docs.arbitrum.io/stylus"
                 target="_blank"

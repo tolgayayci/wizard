@@ -46,7 +46,18 @@ impl FileSystemService {
         let project_path = self.get_project_path(user_id, project_id);
         
         // Use cargo stylus new to create a proper Stylus project
-        let output = tokio::process::Command::new("cargo")
+        let mut new_cmd = tokio::process::Command::new("cargo");
+        
+        // Check if running in Docker container (wizard user exists)
+        if std::path::Path::new("/home/wizard").exists() {
+            // Docker environment - use wizard user paths
+            new_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+        }
+        // For local development, use system defaults (no env override needed)
+        
+        let output = new_cmd
             .args(&["stylus", "new", project_id, "--minimal"])
             .current_dir(&user_path)
             .output()
@@ -56,7 +67,18 @@ impl FileSystemService {
             // If the project already exists or cargo stylus new fails, try init instead
             fs::create_dir_all(&project_path).await?;
             
-            let init_output = tokio::process::Command::new("cargo")
+            let mut init_cmd = tokio::process::Command::new("cargo");
+            
+            // Check if running in Docker container (wizard user exists)
+            if std::path::Path::new("/home/wizard").exists() {
+                // Docker environment - use wizard user paths
+                init_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                    .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                    .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+            }
+            // For local development, use system defaults (no env override needed)
+            
+            let init_output = init_cmd
                 .args(&["stylus", "init", "--minimal"])
                 .current_dir(&project_path)
                 .output()

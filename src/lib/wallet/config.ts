@@ -1,6 +1,12 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { arbitrum, arbitrumSepolia } from 'wagmi/chains';
+import { arbitrum as arbitrumBase, arbitrumSepolia } from 'wagmi/chains';
 import { Chain } from 'viem';
+
+// Custom Arbitrum One configuration with explicit name
+export const arbitrum: Chain = {
+  ...arbitrumBase,
+  name: 'Arbitrum One',
+};
 
 // Custom Superposition mainnet configuration
 export const superpositionMainnet: Chain = {
@@ -61,10 +67,9 @@ export const superposition = superpositionTestnet;
 
 // Define supported networks
 export const supportedChains: readonly [Chain, ...Chain[]] = [
-  superpositionTestnet, // Default testnet for Wizard Wallet
-  superpositionMainnet,
-  arbitrumSepolia,
   arbitrum,
+  arbitrumSepolia,
+  superpositionTestnet,
 ] as const;
 
 // Network configurations for deployment
@@ -110,7 +115,8 @@ export const networkConfigs = {
 } as const;
 
 // WalletConnect project ID from environment variables
-const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'your-walletconnect-project-id';
+// Using a default project ID if not configured
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'a5f45a93797ad2d4a96c96b8c63e29e2';
 
 // Wagmi configuration
 export const wagmiConfig = getDefaultConfig({

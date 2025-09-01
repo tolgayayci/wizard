@@ -52,15 +52,6 @@ const getChainName = (chainId: number) => {
   return getNetworkInfo(chainId).name;
 };
 
-const getChainColor = (chainId: number) => {
-  const colors: Record<number, string> = {
-    421614: 'text-blue-500',
-    42161: 'text-green-500',
-    98985: 'text-purple-500',
-  };
-  return colors[chainId] || 'text-gray-500';
-};
-
 export function DeploymentTable({
   deployments,
   isLoading,
@@ -166,22 +157,22 @@ export function DeploymentTable({
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[20%]">
+              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[18%]">
                 <div className="flex items-center gap-2">
                   <Code2 className="h-3.5 w-3.5" />
                   Project
                 </div>
               </th>
-              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[20%]">
+              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[18%]">
                 Contract Address
               </th>
-              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[15%]">
+              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[20%]">
                 <div className="flex items-center gap-2">
                   <Network className="h-3.5 w-3.5" />
                   Chain
                 </div>
               </th>
-              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[15%]">
+              <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[14%]">
                 Transaction
               </th>
               <th className="h-11 px-6 text-left text-xs font-medium text-muted-foreground w-[12%]">
@@ -275,12 +266,20 @@ export function DeploymentTable({
                   </div>
                 </td>
                 <td className="py-4 px-6">
-                  <div className="flex items-center gap-2">
-                    <div className={cn("h-2 w-2 rounded-full", getChainColor(deployment.chain_id).replace('text-', 'bg-'))} />
-                    <span className={cn("text-sm", getChainColor(deployment.chain_id))}>
-                      {deployment.chain_name || getChainName(deployment.chain_id)}
-                    </span>
-                  </div>
+                  <Badge 
+                    variant="secondary" 
+                    className={cn(
+                      "font-medium whitespace-nowrap",
+                      deployment.chain_id === 421614 && "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                      deployment.chain_id === 42161 && "bg-green-500/10 text-green-600 border-green-500/20",
+                      deployment.chain_id === 98985 && "bg-purple-500/10 text-purple-600 border-purple-500/20",
+                      deployment.chain_id === 55244 && "bg-orange-500/10 text-orange-600 border-orange-500/20",
+                      !([421614, 42161, 98985, 55244].includes(deployment.chain_id)) && "bg-gray-500/10 text-gray-600 border-gray-500/20"
+                    )}
+                  >
+                    <Network className="h-3 w-3 mr-1" />
+                    {deployment.chain_name || getChainName(deployment.chain_id)}
+                  </Badge>
                 </td>
                 <td className="py-4 px-6">
                   {deployment.tx_hash || deployment.metadata?.tx_hash ? (
