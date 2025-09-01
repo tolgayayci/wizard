@@ -63,18 +63,34 @@ async fn deploy_with_wizard(
         .join("wasm32-unknown-unknown")
         .join("release");
     
-    // Find the WASM file
+    // Find the WASM file - look for the largest one (main contract, not stub)
     let mut wasm_file = None;
+    let mut largest_size = 0u64;
+    
     if wasm_path.exists() {
         if let Ok(mut entries) = tokio::fs::read_dir(&wasm_path).await {
             while let Ok(Some(entry)) = entries.next_entry().await {
                 let path = entry.path();
                 if path.extension().and_then(|s| s.to_str()) == Some("wasm") {
-                    wasm_file = Some(path);
-                    break;
+                    // Get file size to identify main contract
+                    if let Ok(metadata) = tokio::fs::metadata(&path).await {
+                        let size = metadata.len();
+                        info!("Found WASM file: {:?}, size: {} bytes", path.file_name(), size);
+                        
+                        // Skip tiny stub files (less than 1KB)
+                        // Real contracts are typically > 5KB
+                        if size > 1000 && size > largest_size {
+                            largest_size = size;
+                            wasm_file = Some(path);
+                        }
+                    }
                 }
             }
         }
+    }
+    
+    if let Some(ref path) = wasm_file {
+        info!("Selected WASM file: {:?} with size: {} bytes", path.file_name(), largest_size);
     }
     
     let wasm_file_path = match wasm_file {
