@@ -1,14 +1,21 @@
 # Use official Rust image with specific version
 FROM rust:1.88.0-slim
 
-# Install system dependencies in one layer
+# Install system dependencies, solc, and tools in one layer
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     git \
     curl \
+    wget \
     ca-certificates \
+    nodejs \
+    npm \
     && rm -rf /var/lib/apt/lists/* \
+    && wget -O /usr/local/bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux \
+    && chmod +x /usr/local/bin/solc \
+    && npm install -g wasm-opt \
+    && cargo install twiggy \
     && rustup target add wasm32-unknown-unknown
 
 # Create app directory
@@ -51,7 +58,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
     rustup toolchain install 1.87.0 && \
     rustup target add --toolchain 1.87.0 wasm32-unknown-unknown && \
     rustup default stable && \
-    cargo install cargo-stylus --version 0.6.3
+    cargo install cargo-stylus --version 0.6.3 && \
+    cargo install twiggy
 
 # Expose port
 EXPOSE 8080
