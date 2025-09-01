@@ -1,7 +1,7 @@
 # Use official Rust image with specific version
 FROM rust:1.88.0
 
-# Install system dependencies, solc, and tools
+# Install system dependencies and solc
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -9,8 +9,28 @@ RUN apt-get update && apt-get install -y \
     curl \
     wget \
     && rm -rf /var/lib/apt/lists/* \
-    && wget -O /usr/local/bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux \
-    && chmod +x /usr/local/bin/solc \
+    && ARCH=$(uname -m) && \
+    echo "Architecture: $ARCH" && \
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+        echo "ARM64 detected - building solc from source..." && \
+        apt-get update && apt-get install -y build-essential cmake libboost-all-dev && \
+        git clone --depth 1 --branch v0.8.24 https://github.com/ethereum/solidity.git && \
+        cd solidity && \
+        mkdir build && \
+        cd build && \
+        cmake .. && \
+        make -j$(nproc) && \
+        cp solc/solc /usr/local/bin/ && \
+        cd / && \
+        rm -rf solidity && \
+        apt-get remove -y build-essential cmake libboost-all-dev && \
+        apt-get autoremove -y && \
+        rm -rf /var/lib/apt/lists/*; \
+    else \
+        echo "x86_64 detected - downloading prebuilt solc..." && \
+        wget -O /usr/local/bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux && \
+        chmod +x /usr/local/bin/solc; \
+    fi \
     && ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
         wget -O binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-aarch64-linux.tar.gz; \
