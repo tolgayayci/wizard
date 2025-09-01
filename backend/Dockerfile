@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
 # Install cargo-stylus for smart contract compilation
 RUN cargo install cargo-stylus --version 0.6.3
 
+# Add wasm32 target for Stylus compilation
+RUN rustup target add wasm32-unknown-unknown
+
 # Create app directory
 WORKDIR /app
 

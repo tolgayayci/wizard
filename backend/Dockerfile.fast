@@ -9,7 +9,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && cargo install cargo-stylus --version 0.6.3
+    && cargo install cargo-stylus --version 0.6.3 \
+    && rustup target add wasm32-unknown-unknown
 
 # Create app directory
 WORKDIR /app
