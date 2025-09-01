@@ -298,6 +298,8 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
+        eprintln!("Exporting ABI JSON for project at: {:?}", project_path);
+
         // Set up environment for the wizard user
         let mut cmd = Command::new("cargo");
         cmd.env("CARGO_HOME", "/home/wizard/.cargo")
@@ -306,7 +308,12 @@ impl LocalCompilerService {
             .args(&["stylus", "export-abi", "--json"])
             .current_dir(&project_path);
 
+        eprintln!("Running command: cargo stylus export-abi --json");
         let abi_output = cmd.output().await?;
+
+        eprintln!("Command exit status: {}", abi_output.status);
+        eprintln!("STDOUT: {}", String::from_utf8_lossy(&abi_output.stdout));
+        eprintln!("STDERR: {}", String::from_utf8_lossy(&abi_output.stderr));
 
         if abi_output.status.success() {
             let raw_output = String::from_utf8_lossy(&abi_output.stdout);

@@ -1,7 +1,7 @@
 # Use official Rust image with specific version
 FROM rust:1.88.0-slim
 
-# Install system dependencies and cargo-stylus in one layer
+# Install system dependencies in one layer
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && cargo install cargo-stylus --version 0.6.3 \
     && rustup target add wasm32-unknown-unknown
 
 # Create app directory

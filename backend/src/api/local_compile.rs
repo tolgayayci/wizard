@@ -112,6 +112,7 @@ async fn export_abi_json(
             })
         }
         Err(e) => {
+            eprintln!("ABI export error for user {} project {}: {}", req.user_id, req.project_id, e);
             HttpResponse::InternalServerError().json(ApiResponse::<String> {
                 success: false,
                 message: "Failed to export ABI JSON".to_string(),
