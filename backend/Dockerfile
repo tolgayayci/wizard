@@ -1,19 +1,25 @@
 # Use official Rust image with specific version
 FROM rust:1.88.0
 
-# Install system dependencies, solc, and Node.js for wasm-opt
+# Install system dependencies, solc, and tools
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     git \
     curl \
     wget \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/* \
     && wget -O /usr/local/bin/solc https://github.com/ethereum/solidity/releases/download/v0.8.24/solc-static-linux \
     && chmod +x /usr/local/bin/solc \
-    && npm install -g wasm-opt \
+    && ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+        wget -O binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-aarch64-linux.tar.gz; \
+    else \
+        wget -O binaryen.tar.gz https://github.com/WebAssembly/binaryen/releases/download/version_117/binaryen-version_117-x86_64-linux.tar.gz; \
+    fi && \
+    tar -xzf binaryen.tar.gz && \
+    cp binaryen-version_117/bin/wasm-opt /usr/local/bin/ && \
+    rm -rf binaryen.tar.gz binaryen-version_117 \
     && cargo install twiggy
 
 # Add wasm32 target for Stylus compilation (for root, used during build)
