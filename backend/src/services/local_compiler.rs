@@ -61,10 +61,17 @@ impl LocalCompilerService {
 
         // First run cargo stylus check to validate
         let mut check_cmd = Command::new("cargo");
-        check_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-            .env("RUSTUP_HOME", "/home/wizard/.rustup")
-            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
-            .env("TERM", "xterm-256color")
+        
+        // Check if running in Docker container (wizard user exists)
+        if std::path::Path::new("/home/wizard").exists() {
+            // Docker environment - use wizard user paths
+            check_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+        }
+        // For local development, use system defaults (no env override needed)
+        
+        check_cmd.env("TERM", "xterm-256color")
             .env("FORCE_COLOR", "1")
             .env("CARGO_TERM_COLOR", "always")
             .args(&["stylus", "check"])
@@ -129,7 +136,18 @@ impl LocalCompilerService {
             }
 
             // Run full WASM compilation - this might succeed even if stylus check failed
-            let build_output = Command::new("cargo")
+            let mut build_cmd = Command::new("cargo");
+            
+            // Check if running in Docker container (wizard user exists)
+            if std::path::Path::new("/home/wizard").exists() {
+                // Docker environment - use wizard user paths
+                build_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                    .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                    .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+            }
+            // For local development, use system defaults (no env override needed)
+            
+            let build_output = build_cmd
                 .args(&["build", "--release", "--target", "wasm32-unknown-unknown"])
                 .current_dir(&project_path)
                 .env("CARGO_TERM_COLOR", "always")
@@ -273,12 +291,19 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
-        // Set up environment for the wizard user
+        // Set up command
         let mut cmd = Command::new("cargo");
-        cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-            .env("RUSTUP_HOME", "/home/wizard/.rustup")
-            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
-            .args(&["stylus", "export-abi"])
+        
+        // Check if running in Docker container (wizard user exists)
+        if std::path::Path::new("/home/wizard").exists() {
+            // Docker environment - use wizard user paths
+            cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+        }
+        // For local development, use system defaults (no env override needed)
+        
+        cmd.args(&["stylus", "export-abi"])
             .current_dir(&project_path);
 
         let abi_output = cmd.output().await?;
@@ -298,12 +323,19 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
-        // Set up environment for the wizard user
+        // Set up command
         let mut cmd = Command::new("cargo");
-        cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-            .env("RUSTUP_HOME", "/home/wizard/.rustup")
-            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
-            .args(&["stylus", "export-abi", "--json"])
+        
+        // Check if running in Docker container (wizard user exists)
+        if std::path::Path::new("/home/wizard").exists() {
+            // Docker environment - use wizard user paths
+            cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+                .env("RUSTUP_HOME", "/home/wizard/.rustup")
+                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+        }
+        // For local development, use system defaults (no env override needed)
+        
+        cmd.args(&["stylus", "export-abi", "--json"])
             .current_dir(&project_path);
 
         let abi_output = cmd.output().await?;

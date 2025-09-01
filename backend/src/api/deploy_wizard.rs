@@ -122,7 +122,18 @@ async fn deploy_with_wizard(
     // Run cargo stylus deploy
     info!("Running cargo stylus deploy with RPC: {}", rpc_url);
     
-    let output = Command::new("cargo")
+    let mut deploy_cmd = Command::new("cargo");
+    
+    // Check if running in Docker container (wizard user exists)
+    if std::path::Path::new("/home/wizard").exists() {
+        // Docker environment - use wizard user paths
+        deploy_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+            .env("RUSTUP_HOME", "/home/wizard/.rustup")
+            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
+    }
+    // For local development, use system defaults (no env override needed)
+    
+    let output = deploy_cmd
         .args(&[
             "stylus",
             "deploy",
