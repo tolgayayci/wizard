@@ -42,10 +42,21 @@ USER wizard
 # Set cargo home for the wizard user
 ENV CARGO_HOME=/home/wizard/.cargo
 ENV PATH=$CARGO_HOME/bin:$PATH
+ENV RUSTUP_HOME=/home/wizard/.rustup
 
 # Create cargo directories with proper permissions
 RUN mkdir -p $CARGO_HOME/registry && \
-    mkdir -p $CARGO_HOME/git
+    mkdir -p $CARGO_HOME/git && \
+    mkdir -p $RUSTUP_HOME
+
+# Install rustup for the wizard user and add wasm32 target
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable && \
+    . $CARGO_HOME/env && \
+    rustup target add wasm32-unknown-unknown && \
+    rustup toolchain install 1.87.0 && \
+    rustup target add --toolchain 1.87.0 wasm32-unknown-unknown && \
+    rustup default stable && \
+    cargo install cargo-stylus --version 0.6.3
 
 # Expose port
 EXPOSE 8080
