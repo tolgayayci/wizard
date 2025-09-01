@@ -298,6 +298,23 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
+        eprintln!("DEBUG: Checking if solc exists...");
+        let solc_check = Command::new("which")
+            .arg("solc")
+            .output()
+            .await?;
+        eprintln!("solc location: {}", String::from_utf8_lossy(&solc_check.stdout));
+        
+        let solc_version = Command::new("solc")
+            .arg("--version")
+            .output()
+            .await;
+        if let Ok(output) = solc_version {
+            eprintln!("solc version: {}", String::from_utf8_lossy(&output.stdout));
+        } else {
+            eprintln!("Failed to get solc version");
+        }
+
         // Set up environment for the wizard user
         let mut cmd = Command::new("cargo");
         cmd.env("CARGO_HOME", "/home/wizard/.cargo")
@@ -306,7 +323,12 @@ impl LocalCompilerService {
             .args(&["stylus", "export-abi", "--json"])
             .current_dir(&project_path);
 
+        eprintln!("Running: cargo stylus export-abi --json in {:?}", project_path);
         let abi_output = cmd.output().await?;
+        
+        eprintln!("Exit status: {}", abi_output.status);
+        eprintln!("STDOUT: {}", String::from_utf8_lossy(&abi_output.stdout));
+        eprintln!("STDERR: {}", String::from_utf8_lossy(&abi_output.stderr));
 
         if abi_output.status.success() {
             let raw_output = String::from_utf8_lossy(&abi_output.stdout);
