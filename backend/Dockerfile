@@ -17,7 +17,10 @@ WORKDIR /app
 
 # Create non-root user for security
 RUN useradd -m -u 1000 -s /bin/bash wizard && \
-    chown -R wizard:wizard /app
+    chown -R wizard:wizard /app && \
+    mkdir -p /usr/local/cargo/registry && \
+    chown -R wizard:wizard /usr/local/cargo/registry && \
+    chmod -R 755 /usr/local/cargo/registry
 
 # Copy project files
 COPY --chown=wizard:wizard Cargo.toml Cargo.lock ./
@@ -32,6 +35,14 @@ RUN mkdir -p /app/projects && \
 
 # Switch to non-root user
 USER wizard
+
+# Set cargo home for the wizard user
+ENV CARGO_HOME=/home/wizard/.cargo
+ENV PATH=$CARGO_HOME/bin:$PATH
+
+# Create cargo directories with proper permissions
+RUN mkdir -p $CARGO_HOME/registry && \
+    mkdir -p $CARGO_HOME/git
 
 # Expose port
 EXPOSE 8080

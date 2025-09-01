@@ -21,6 +21,9 @@ import { FileExplorerView } from '@/components/explorer/FileExplorerView';
 import { Terminal, TerminalRef } from '@/components/views/Terminal';
 import { WalletButton } from '@/components/wallet/WalletButton';
 import { apiClient } from '@/lib/api';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
 const VIEWS = [
   { id: 'explorer', title: 'Files', icon: FolderTree },
