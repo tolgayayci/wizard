@@ -60,14 +60,17 @@ impl LocalCompilerService {
         }
 
         // First run cargo stylus check to validate
-        let check_output = Command::new("cargo")
-            .args(&["stylus", "check"])
-            .current_dir(&project_path)
+        let mut check_cmd = Command::new("cargo");
+        check_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+            .env("RUSTUP_HOME", "/home/wizard/.rustup")
+            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
             .env("TERM", "xterm-256color")
             .env("FORCE_COLOR", "1")
             .env("CARGO_TERM_COLOR", "always")
-            .output()
-            .await?;
+            .args(&["stylus", "check"])
+            .current_dir(&project_path);
+        
+        let check_output = check_cmd.output().await?;
 
         let output_str = String::from_utf8_lossy(&check_output.stdout);
         let error_str = String::from_utf8_lossy(&check_output.stderr);
@@ -270,11 +273,15 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
-        let abi_output = Command::new("cargo")
+        // Set up environment for the wizard user
+        let mut cmd = Command::new("cargo");
+        cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+            .env("RUSTUP_HOME", "/home/wizard/.rustup")
+            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
             .args(&["stylus", "export-abi"])
-            .current_dir(&project_path)
-            .output()
-            .await?;
+            .current_dir(&project_path);
+
+        let abi_output = cmd.output().await?;
 
         if abi_output.status.success() {
             Ok(String::from_utf8_lossy(&abi_output.stdout).to_string())
@@ -291,11 +298,15 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
-        let abi_output = Command::new("cargo")
+        // Set up environment for the wizard user
+        let mut cmd = Command::new("cargo");
+        cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+            .env("RUSTUP_HOME", "/home/wizard/.rustup")
+            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
             .args(&["stylus", "export-abi", "--json"])
-            .current_dir(&project_path)
-            .output()
-            .await?;
+            .current_dir(&project_path);
+
+        let abi_output = cmd.output().await?;
 
         if abi_output.status.success() {
             let raw_output = String::from_utf8_lossy(&abi_output.stdout);
@@ -453,11 +464,14 @@ impl LocalCompilerService {
         };
 
         // Run cargo stylus check to verify Arbitrum requirements
-        let stylus_check_output = Command::new("cargo")
+        let mut stylus_check_cmd = Command::new("cargo");
+        stylus_check_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
+            .env("RUSTUP_HOME", "/home/wizard/.rustup")
+            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
             .args(&["stylus", "check"])
-            .current_dir(&project_path)
-            .output()
-            .await;
+            .current_dir(&project_path);
+        
+        let stylus_check_output = stylus_check_cmd.output().await;
 
         let arbitrum_compliance = match stylus_check_output {
             Ok(output) if output.status.success() => {
