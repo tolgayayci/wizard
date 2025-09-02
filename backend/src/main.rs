@@ -43,9 +43,17 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let cors = Cors::default()
             .allowed_origin_fn(|origin, _req_head| {
-                // In production, use config.cors.allowed_origins
-                origin.as_bytes().starts_with(b"http://localhost") ||
-                origin.as_bytes().starts_with(b"https://localhost")
+                // Allow configured origins from environment
+                let allowed = vec![
+                    "http://localhost:5173",
+                    "http://localhost:5174", 
+                    "http://localhost:5175",
+                    "http://localhost:3000",
+                    "https://thewizard.app",
+                    "https://www.thewizard.app"
+                ];
+                let origin_str = origin.to_str().unwrap_or("");
+                allowed.contains(&origin_str) || origin_str.starts_with("http://localhost")
             })
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
             .allowed_headers(vec![
