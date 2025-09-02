@@ -60,9 +60,13 @@ async fn main() -> std::io::Result<()> {
                 actix_web::http::header::AUTHORIZATION,
                 actix_web::http::header::ACCEPT,
                 actix_web::http::header::CONTENT_TYPE,
+                actix_web::http::header::HeaderName::from_static("x-requested-with"),
+            ])
+            .expose_headers(vec![
+                actix_web::http::header::CONTENT_TYPE,
+                actix_web::http::header::CONTENT_LENGTH,
             ])
             .supports_credentials()
-            .expose_headers(vec![actix_web::http::header::CONTENT_TYPE])
             .max_age(3600);
 
         // Create rate limiter
