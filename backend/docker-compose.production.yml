@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  wizard-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.letsencrypt
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    environment:
+      - DOMAIN=${DOMAIN:-api.thewizard.app}
+      - EMAIL=${EMAIL:-admin@thewizard.app}
+      - RUST_LOG=info
+      - HOST=0.0.0.0
+      - PORT=8081
+      - STORAGE_PATH=/app/projects
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - CONTRACT_PRIVATE_KEY=${CONTRACT_PRIVATE_KEY}
+      - ALLOWED_ORIGINS=https://thewizard.app,https://www.thewizard.app,http://localhost:5173,http://localhost:3000
+      - CRATES_IO_API_URL=https://crates.io/api/v1
+      - RATE_LIMIT_PER_MINUTE=60
+      - RATE_LIMIT_PER_HOUR=1000
+    volumes:
+      - wizard-projects:/app/projects
+      - wizard-cargo:/home/wizard/.cargo
+      - wizard-rustup:/home/wizard/.rustup
+      - letsencrypt:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    restart: unless-stopped
+    networks:
+      - wizard-network
+
+volumes:
+  wizard-projects:
+  wizard-cargo:
+  wizard-rustup:
+  letsencrypt:
+  certbot-www:
+
+networks:
+  wizard-network:
+    driver: bridge
