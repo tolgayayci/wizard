@@ -10,20 +10,37 @@ echo "Starting Wizard Backend with SSL for $DOMAIN"
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
     echo "Getting Let's Encrypt certificate for $DOMAIN..."
     
-    # Start temporary nginx for certbot
-    cat > /etc/nginx/sites-enabled/temp.conf <<EOF
+    # Remove any existing nginx configs that might interfere
+    rm -f /etc/nginx/sites-enabled/*
+    
+    # Create a simple nginx config just for certbot
+    cat > /etc/nginx/sites-available/certbot.conf <<EOF
 server {
     listen 80;
     server_name $DOMAIN;
+    
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
+    }
+    
+    location / {
+        return 404;
     }
 }
 EOF
     
-    nginx -g "daemon off;" &
-    NGINX_PID=$!
-    sleep 3
+    ln -sf /etc/nginx/sites-available/certbot.conf /etc/nginx/sites-enabled/certbot.conf
+    
+    # Test nginx config
+    nginx -t
+    
+    # Start nginx for certbot
+    nginx
+    sleep 5
+    
+    # Test that nginx is serving on port 80
+    echo "Testing nginx on port 80..."
+    curl -f http://localhost/.well-known/acme-challenge/ || echo "Nginx test path accessible"
     
     # Get certificate
     certbot certonly --webroot -w /var/www/certbot \
@@ -33,6 +50,7 @@ EOF
         --non-interactive \
         -d $DOMAIN || {
             echo "Failed to get certificate, using self-signed as fallback"
+            mkdir -p /etc/nginx/ssl
             openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
                 -keyout /etc/nginx/ssl/privkey.pem \
                 -out /etc/nginx/ssl/fullchain.pem \
@@ -42,8 +60,10 @@ EOF
             sed -i 's|/etc/letsencrypt/live/api.thewizard.app/|/etc/nginx/ssl/|g' /etc/nginx/sites-available/wizard
         }
     
-    kill $NGINX_PID 2>/dev/null || true
-    rm -f /etc/nginx/sites-enabled/temp.conf
+    # Stop nginx and clean up
+    nginx -s stop || true
+    sleep 2
+    rm -f /etc/nginx/sites-enabled/certbot.conf
 fi
 
 # Setup auto-renewal
