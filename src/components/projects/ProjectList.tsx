@@ -213,7 +213,7 @@ export function ProjectList({
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={(e) => {
                         e.stopPropagation();
-                        onNavigate(project.id);
+                        window.open(`/projects/${project.id}`, '_blank');
                       }}>
                         <ExternalLinkIcon className="mr-2 h-4 w-4" />
                         Open in New Tab

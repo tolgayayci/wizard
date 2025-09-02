@@ -324,6 +324,7 @@ export function initializeMonaco(monaco: typeof import('monaco-editor')) {
 
 // Editor theme configuration
 export function defineEditorTheme(monaco: typeof import('monaco-editor'), isDark: boolean) {
+  // Always redefine the theme to ensure it's up to date
   monaco.editor.defineTheme('custom-theme', {
     base: isDark ? 'vs-dark' : 'vs',
     inherit: true,
@@ -363,6 +364,9 @@ export function defineEditorTheme(monaco: typeof import('monaco-editor'), isDark
       'minimap.background': isDark ? '#18181B' : '#f6f8fa',
     }
   });
+  
+  // Force apply the theme immediately after defining it
+  monaco.editor.setTheme('custom-theme');
 }
 
 // Editor options

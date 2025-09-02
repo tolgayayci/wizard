@@ -60,11 +60,13 @@ export function Editor({
   const [lintIssues, setLintIssues] = useState<LintIssue[]>([]);
   const [lintStatus, setLintStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const lintDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLintedContentRef = useRef<string>('');
   const lastLintTimeRef = useRef<number>(0);
+  const isVisibleRef = useRef<boolean>(true);
   const { theme, systemTheme } = useTheme();
   const { toast } = useToast();
   
@@ -99,7 +101,8 @@ export function Editor({
   const editorLanguage = getLanguageFromFile(currentFile);
 
   // Get the effective theme (system or user preference)
-  const effectiveTheme = theme === 'system' ? systemTheme : theme;
+  // Default to 'light' if theme is not yet resolved
+  const effectiveTheme = theme === 'system' ? (systemTheme || 'light') : (theme || 'light');
 
   // Check backend connection
   const checkBackendConnection = useCallback(async () => {
@@ -123,9 +126,13 @@ export function Editor({
 
   // Check backend connection on mount and periodically
   useEffect(() => {
+    setIsMounted(true);
     checkBackendConnection();
     const interval = setInterval(checkBackendConnection, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
+    return () => {
+      setIsMounted(false);
+      clearInterval(interval);
+    };
   }, [checkBackendConnection]);
 
   const handleEditorDidMount = (editor: any, monaco: any) => {
@@ -133,7 +140,18 @@ export function Editor({
     monacoRef.current = monaco;
     
     initializeMonaco(monaco);
-    defineEditorTheme(monaco, effectiveTheme === 'dark');
+    
+    // Apply theme based on current effective theme
+    const isDarkMode = effectiveTheme === 'dark';
+    defineEditorTheme(monaco, isDarkMode);
+    
+    // Force theme application after a delay to ensure it persists
+    setTimeout(() => {
+      // Re-check theme in case it changed during mount
+      const currentTheme = theme === 'system' ? (systemTheme || 'light') : (theme || 'light');
+      const currentIsDark = currentTheme === 'dark';
+      defineEditorTheme(monaco, currentIsDark);
+    }, 100);
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, handleSave);
     
@@ -419,11 +437,45 @@ export function Editor({
 
   // Update theme when it changes
   useEffect(() => {
-    if (editorRef.current && monacoRef.current) {
-      defineEditorTheme(monacoRef.current, effectiveTheme === 'dark');
-      monacoRef.current.editor.setTheme('custom-theme');
+    if (editorRef.current && monacoRef.current && isMounted) {
+      const isDark = effectiveTheme === 'dark';
+      defineEditorTheme(monacoRef.current, isDark);
+      
+      // Force reapply theme after a short delay to ensure it persists
+      const timeoutId = setTimeout(() => {
+        if (monacoRef.current && isMounted) {
+          defineEditorTheme(monacoRef.current, isDark);
+        }
+      }, 50);
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [effectiveTheme]);
+  }, [effectiveTheme, isMounted]);
+  
+  // Track visibility and reapply theme when editor becomes visible
+  useEffect(() => {
+    // Component just mounted or became visible
+    isVisibleRef.current = true;
+    
+    // Reapply theme when component becomes visible
+    if (editorRef.current && monacoRef.current && isVisibleRef.current && isMounted) {
+      // Wait for editor to be fully rendered
+      const timeoutId = setTimeout(() => {
+        if (monacoRef.current && editorRef.current && isMounted) {
+          const isDark = effectiveTheme === 'dark';
+          defineEditorTheme(monacoRef.current, isDark);
+          
+          // Force layout update
+          editorRef.current.layout();
+        }
+      }, 200);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        isVisibleRef.current = false;
+      };
+    }
+  }, [effectiveTheme, isMounted]); // Re-run when theme changes or component mounts
 
   // Cleanup debounce timeout on unmount
   useEffect(() => {
@@ -487,6 +539,7 @@ export function Editor({
             readOnly: readOnly || isCompiling || isSharedView || !!connectionError,
             theme: 'custom-theme', // Set initial theme
           }}
+          theme={effectiveTheme === 'dark' ? 'vs-dark' : 'vs'}
           onMount={handleEditorDidMount}
           loading={
             <div className="absolute inset-0 flex items-center justify-center bg-muted/40">

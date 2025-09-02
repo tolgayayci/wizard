@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -87,7 +87,11 @@ interface FileExplorerProps {
   onManagePackages?: () => void;
 }
 
-export function FileExplorer({
+export interface FileExplorerRef {
+  refresh: () => void;
+}
+
+export const FileExplorer = forwardRef<FileExplorerRef, FileExplorerProps>(({
   userId,
   projectId,
   projectName,
@@ -95,7 +99,7 @@ export function FileExplorer({
   className,
   selectedFile,
   onManagePackages,
-}: FileExplorerProps) {
+}, ref) => {
   const [tree, setTree] = useState<FileNode | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(selectedFile || 'src/lib.rs');
@@ -187,6 +191,13 @@ export function FileExplorer({
   useEffect(() => {
     fetchTree();
   }, [fetchTree]);
+  
+  // Expose refresh method via ref
+  useImperativeHandle(ref, () => ({
+    refresh: () => {
+      fetchTree();
+    }
+  }), [fetchTree]);
 
   const toggleExpand = (path: string) => {
     setExpandedPaths((prev) => {
@@ -1055,4 +1066,4 @@ export function FileExplorer({
       </DragOverlay>
     </DndContext>
   );
-}
+});

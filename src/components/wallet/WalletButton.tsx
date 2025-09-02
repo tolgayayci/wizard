@@ -90,7 +90,7 @@ export function WalletButton() {
             <div className="px-3 py-2">
               <div className="text-sm">
                 <span className="text-muted-foreground">Network: </span>
-                <span className="font-medium">{getNetworkName(selectedNetwork.id)}</span>
+                <span className="font-medium">Superposition Testnet</span>
               </div>
             </div>
             

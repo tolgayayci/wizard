@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { ProjectBadge } from '@/components/ui/ProjectBadge';
 import { PackageManagerDialog } from '@/components/packages/PackageManagerDialogNew';
 import { FileExplorerView } from '@/components/explorer/FileExplorerView';
+import { FileExplorerRef } from '@/components/explorer/FileExplorer';
 import { Terminal, TerminalRef } from '@/components/views/Terminal';
 import { WalletButton } from '@/components/wallet/WalletButton';
 import { apiClient } from '@/lib/api';
@@ -49,6 +50,7 @@ export function EditorPage() {
   const [currentFileContent, setCurrentFileContent] = useState<string>('');
   const [isLoadingFile, setIsLoadingFile] = useState(false);
   const terminalRef = useRef<TerminalRef>(null);
+  const fileExplorerRef = useRef<FileExplorerRef>(null);
   const [user, setUser] = useState<any>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const { id } = useParams();
@@ -461,6 +463,13 @@ export function EditorPage() {
             : "Check the terminal for error details",
           variant: compilationData.success ? "default" : "destructive",
         });
+        
+        // Refresh file explorer after successful compilation
+        if (compilationData.success && fileExplorerRef.current) {
+          setTimeout(() => {
+            fileExplorerRef.current?.refresh();
+          }, 500); // Small delay to ensure any generated files are written
+        }
       } else {
         // Even if the API request fails, check if there's compilation data with output
         if (response.data.data && response.data.data.output && terminalRef.current) {
@@ -776,7 +785,15 @@ export function EditorPage() {
           />
           <PackageManagerDialog
             open={showPackageDialog}
-            onOpenChange={setShowPackageDialog}
+            onOpenChange={(open) => {
+              setShowPackageDialog(open);
+              // Refresh file explorer when dialog closes (after package operations)
+              if (!open && fileExplorerRef.current) {
+                setTimeout(() => {
+                  fileExplorerRef.current?.refresh();
+                }, 500);
+              }
+            }}
             projectId={project.id}
             userId={user?.id || ''}
           />
@@ -788,6 +805,7 @@ export function EditorPage() {
           {hasExplorer && (
             <div style={{ width: getMainPanelWidth('explorer') }} className="h-full overflow-hidden p-2">
               <FileExplorerView
+                ref={fileExplorerRef}
                 userId={user?.id || ''}
                 projectId={project.id}
                 projectName={project.name}

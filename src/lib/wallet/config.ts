@@ -104,13 +104,13 @@ export const networkConfigs = {
     wizardWalletSupported: false,
   },
   [arbitrumSepolia.id]: {
-    name: 'Arbitrum Sepolia',
+    name: 'Superposition Testnet',
     symbol: 'ETH',
     explorerUrl: 'https://sepolia.arbiscan.io',
     rpcUrl: 'https://sepolia-rollup.arbitrum.io/rpc',
     isTestnet: true,
     faucetUrl: 'https://bridge.arbitrum.io',
-    wizardWalletSupported: false,
+    wizardWalletSupported: true,
   },
 } as const;
 

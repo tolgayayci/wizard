@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code2Icon, Blocks, Sparkles, Wand2, PlayCircle, Bug, Rocket } from 'lucide-react';
+import { Code2Icon, Blocks, Sparkles, Wand2, Bug, Rocket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeProvider } from 'next-themes';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -39,35 +39,20 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Check if user is new and show welcome tour
+  // Get current user
   useEffect(() => {
-    const checkNewUser = async () => {
+    const getCurrentUser = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
         
         setCurrentUser({ id: user.id });
-
-        const { data: userProjects, error } = await supabase
-          .from('projects')
-          .select('created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: true })
-          .limit(1);
-
-        // Check if we have any projects and they were just created
-        if (!error && userProjects && userProjects.length > 0) {
-          const firstProject = userProjects[0];
-          if (Date.now() - new Date(firstProject.created_at).getTime() < 5000) {
-            setShowWelcomeTour(true);
-          }
-        }
       } catch (error) {
-        console.error('Error checking new user status:', error);
+        console.error('Error getting current user:', error);
       }
     };
 
-    checkNewUser();
+    getCurrentUser();
   }, []);
 
   useEffect(() => {
@@ -409,15 +394,6 @@ export function ProjectsPage() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-primary hover:text-primary hover:bg-primary/10"
-              onClick={() => setShowWelcomeTour(true)}
-            >
-              <PlayCircle className="h-4 w-4" />
-              Quick Tour
-            </Button>
             <ThemeToggle />
             <UserNav />
           </div>

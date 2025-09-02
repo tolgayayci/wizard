@@ -21,6 +21,8 @@ interface TerminalProps {
   isSharedView?: boolean;
   onCommandComplete?: () => void;
   projectName?: string;
+  isDeploying?: boolean;
+  isGeneratingWasm?: boolean;
 }
 
 export interface TerminalRef {
@@ -37,6 +39,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     isSharedView = false,
     onCommandComplete,
     projectName = "Contract",
+    isDeploying = false,
+    isGeneratingWasm = false,
   } = props;
   // Terminal state
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -51,11 +55,13 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const [copied, setCopied] = useState(false);
   const [backendConnectionError, setBackendConnectionError] = useState<boolean>(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isExecutingCommand, setIsExecutingCommand] = useState(false);
   const commandBufferRef = useRef<string>('');
   const sessionIdRef = useRef<string | null>(null);
   const terminalBufferRef = useRef<string[]>([]);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const isTerminalDisabledRef = useRef(false);
   const { theme, systemTheme } = useTheme();
   const [versions] = useState({
     rust: 'v1.75.0',
@@ -68,6 +74,14 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   // Get effective theme
   const effectiveTheme = theme === 'system' ? systemTheme : theme;
   const isDark = effectiveTheme === 'dark';
+  
+  // Check if terminal should be disabled - only during actual operations
+  const isTerminalDisabled = isCompiling || isDeploying || isGeneratingWasm || isExecutingCommand;
+  
+  // Update the ref whenever the disabled state changes
+  useEffect(() => {
+    isTerminalDisabledRef.current = isTerminalDisabled;
+  }, [isTerminalDisabled]);
 
   // Validate and transform user commands to ensure only cargo stylus commands are allowed
   const validateAndTransformCommand = (userCommand: string): string | null => {
@@ -296,6 +310,18 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
           return;
         }
         
+        // Check if terminal is disabled using ref (to get current value)
+        if (isTerminalDisabledRef.current) {
+          // Only allow Ctrl+C to cancel current operation
+          if (data === '\x03') {
+            commandBufferRef.current = '';
+            term.write('^C\r\n$ ');
+            setIsExecutingCommand(false);
+          }
+          // Ignore all other input when disabled
+          return;
+        }
+        
         // Always use sessionIdRef.current which should be the most up-to-date
         const currentSessionId = sessionIdRef.current;
         
@@ -310,12 +336,19 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         
         // Handle special keys
         if (data === '\r') { // Enter key
+          // Prevent duplicate command execution using ref
+          if (isTerminalDisabledRef.current) {
+            return;
+          }
+          
           // Send the complete command with validation
           if (commandBufferRef.current.trim()) {
             const userCommand = commandBufferRef.current.trim();
             const validatedCommand = validateAndTransformCommand(userCommand);
             
             if (validatedCommand) {
+              // Set executing flag before sending command
+              setIsExecutingCommand(true);
               const payload = {
                 command: validatedCommand,
                 session_id: currentSessionId,
@@ -325,8 +358,6 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
             } else {
               // Show available cargo stylus commands (matching cargo stylus help output)
               term.write('\r\n\x1b[1;33mAvailable commands:\x1b[0m\r\n');
-              term.write('  \x1b[1;32mnew\x1b[0m           Create a new Stylus project\r\n');
-              term.write('  \x1b[1;32minit\x1b[0m          Initializes a Stylus project in the current directory\r\n');
               term.write('  \x1b[1;32mexport-abi\x1b[0m    Export a Solidity ABI\r\n');
               term.write('  \x1b[1;32mconstructor\x1b[0m   Print the signature of the constructor\r\n');
               term.write('  \x1b[1;32mactivate\x1b[0m      Activate an already deployed contract [aliases: a]\r\n');
@@ -462,6 +493,25 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       applyTerminalTheme(xtermRef.current, isDark);
     }
   }, [isDark, isInitialized]);
+  
+  // Control cursor visibility based on disabled state
+  useEffect(() => {
+    if (xtermRef.current) {
+      // Hide cursor when terminal is disabled
+      xtermRef.current.options.cursorBlink = !isTerminalDisabled;
+      xtermRef.current.options.cursorStyle = isTerminalDisabled ? 'underline' : 'block';
+      
+      // If disabled, blur the terminal to remove focus
+      if (isTerminalDisabled) {
+        xtermRef.current.blur();
+      } else {
+        // Re-focus when enabled again
+        setTimeout(() => {
+          xtermRef.current?.focus();
+        }, 100);
+      }
+    }
+  }, [isTerminalDisabled]);
 
 
   // Expose executeCommand and writeOutput methods via ref
@@ -511,9 +561,12 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         
         // Add a new prompt after output
         xtermRef.current.write('\r\n$ ');
+        
+        // Clear any executing state since compilation is done
+        setIsExecutingCommand(false);
       }
     }
-  }), [sessionId]);
+  }), [sessionId, setIsExecutingCommand]);
 
   const connectWebSocket = () => {
     if (!userId || !projectId) return;
@@ -582,6 +635,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
             xtermRef.current.writeln(`\r\n\x1b[1;31mError: ${data.message}\x1b[0m`);
             xtermRef.current.write('$ ');
           }
+          // Clear executing flag on error
+          setIsExecutingCommand(false);
         } else if (data.output) {
           if (xtermRef.current) {
             // Check if this is a clear command output
@@ -592,7 +647,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
               // Clear the buffer as well
               terminalBufferRef.current = [];
               
-              // Notify that command completed
+              // Clear executing flag and notify completion
+              setIsExecutingCommand(false);
               if (onCommandComplete) {
                 onCommandComplete();
               }
@@ -619,7 +675,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
               // Write prompt for next command
               xtermRef.current.write('$ ');
               
-              // Notify that command completed
+              // Clear executing flag and notify completion
+              setIsExecutingCommand(false);
               if (onCommandComplete) {
                 onCommandComplete();
               }
@@ -735,10 +792,15 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
           <span className="text-xs text-muted-foreground">
             {isConnected ? 'Connected' : isReconnecting ? 'Reconnecting...' : 'Disconnected'}
           </span>
-          {isCompiling && (
+          {(isCompiling || isDeploying || isGeneratingWasm || isExecutingCommand) && (
             <>
               <Loader2 className="h-3 w-3 animate-spin text-primary" />
-              <span className="text-xs text-primary font-medium">Running...</span>
+              <span className="text-xs text-primary font-medium">
+                {isCompiling ? 'Compiling...' : 
+                 isDeploying ? 'Deploying...' : 
+                 isGeneratingWasm ? 'Generating WASM...' : 
+                 'Running...'}
+              </span>
             </>
           )}
           
@@ -788,7 +850,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
             variant="ghost"
             size="sm"
             onClick={clearTerminal}
-            disabled={!isConnected || isReconnecting}
+            disabled={!isConnected || isReconnecting || isTerminalDisabled}
             className="h-7 px-2"
             title="Clear terminal"
           >
@@ -800,7 +862,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
             variant="ghost"
             size="sm"
             onClick={refreshTerminal}
-            disabled={isReconnecting}
+            disabled={isReconnecting || isTerminalDisabled}
             className="h-7 px-2"
             title="Refresh connection"
           >
@@ -848,22 +910,37 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       ) : (
         <div 
           ref={containerRef}
-          className={`flex-1 overflow-hidden ${isDark ? 'bg-zinc-950' : 'bg-white'}`}
+          className={`flex-1 overflow-hidden relative ${isDark ? 'bg-zinc-950' : 'bg-white'}`}
           onClick={() => {
-            // Only focus if no text is selected
-            if (!xtermRef.current?.hasSelection()) {
+            // Only focus if no text is selected and terminal is not disabled
+            if (!xtermRef.current?.hasSelection() && !isTerminalDisabled) {
               focusTerminal();
             }
           }}
-          style={{ cursor: 'text', minHeight: 0 }}
+          style={{ cursor: isTerminalDisabled ? 'not-allowed' : 'text', minHeight: 0 }}
         >
           <div 
             ref={terminalRef} 
-            className="h-full w-full p-2"
+            className={`h-full w-full p-2 ${isTerminalDisabled ? 'opacity-60' : ''}`}
             style={{ 
               overflow: 'hidden'
             }}
           />
+          {isTerminalDisabled && (
+            <div className="absolute inset-0 flex items-end justify-start p-4 pointer-events-none">
+              <div className="flex items-center gap-2 bg-background/90 backdrop-blur-sm border rounded-md px-3 py-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span className="text-xs font-medium">
+                  {isCompiling ? 'Compiling contract...' : 
+                   isDeploying ? 'Deploying contract...' : 
+                   isGeneratingWasm ? 'Generating WASM...' : 
+                   isExecutingCommand ? 'Running command...' : 
+                   'Processing...'}
+                </span>
+                <span className="text-xs text-muted-foreground">(Terminal input disabled)</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

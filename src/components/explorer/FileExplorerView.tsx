@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { FolderTree, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { FileExplorer } from './FileExplorer';
+import { FileExplorer, FileExplorerRef } from './FileExplorer';
 
 interface FileExplorerViewProps {
   userId: string;
@@ -13,7 +13,7 @@ interface FileExplorerViewProps {
   onManagePackages?: () => void;
 }
 
-export function FileExplorerView({
+export const FileExplorerView = forwardRef<FileExplorerRef, FileExplorerViewProps>(({
   userId,
   projectId,
   projectName,
@@ -21,7 +21,7 @@ export function FileExplorerView({
   className,
   selectedFile,
   onManagePackages,
-}: FileExplorerViewProps) {
+}, ref) => {
   return (
     <div className="h-full flex flex-col bg-background border rounded-md overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/40">
@@ -39,6 +39,7 @@ export function FileExplorerView({
       </div>
       <div className="flex-1 overflow-hidden">
         <FileExplorer
+          ref={ref}
           userId={userId}
           projectId={projectId}
           projectName={projectName}
@@ -50,4 +51,4 @@ export function FileExplorerView({
       </div>
     </div>
   );
-}
+});

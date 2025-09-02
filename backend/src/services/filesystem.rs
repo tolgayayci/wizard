@@ -102,16 +102,29 @@ impl FileSystemService {
             self.init_project(user_id, project_id).await?;
         }
         
-        self.build_tree(&project_path, 0, 10).await
+        let mut tree = self.build_tree(&project_path, &project_path, 0, 10).await?;
+        // Set the root name to project_id for better display
+        tree.name = project_id.to_string();
+        Ok(tree)
     }
 
-    async fn build_tree(&self, path: &Path, depth: usize, max_depth: usize) -> Result<FileNode> {
+    async fn build_tree(&self, path: &Path, project_root: &Path, depth: usize, max_depth: usize) -> Result<FileNode> {
         let metadata = fs::metadata(path).await?;
         let name = path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
+        
+        // Calculate relative path from project root
+        let relative_path = if path == project_root {
+            String::new() // Root should have empty path
+        } else {
+            path.strip_prefix(project_root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .to_string()
+        };
         
         if metadata.is_dir() {
             let mut children = Vec::new();
@@ -120,7 +133,7 @@ impl FileSystemService {
             if depth >= max_depth {
                 return Ok(FileNode {
                     name,
-                    path: path.to_string_lossy().to_string(),
+                    path: relative_path,
                     is_directory: true,
                     children: Some(children), // Empty children array
                     size: None,
@@ -150,7 +163,7 @@ impl FileSystemService {
                 }
                 
                 // Recursively build tree for valid entries with incremented depth
-                if let Ok(child) = Box::pin(self.build_tree(&entry.path(), depth + 1, max_depth)).await {
+                if let Ok(child) = Box::pin(self.build_tree(&entry.path(), project_root, depth + 1, max_depth)).await {
                     children.push(child);
                 }
             }
@@ -166,7 +179,7 @@ impl FileSystemService {
             
             Ok(FileNode {
                 name,
-                path: path.to_string_lossy().to_string(),
+                path: relative_path,
                 is_directory: true,
                 children: Some(children),
                 size: None,
@@ -175,7 +188,7 @@ impl FileSystemService {
         } else {
             Ok(FileNode {
                 name,
-                path: path.to_string_lossy().to_string(),
+                path: relative_path,
                 is_directory: false,
                 children: None,
                 size: Some(metadata.len()),
