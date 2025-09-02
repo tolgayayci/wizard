@@ -94,6 +94,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
     cargo install cargo-stylus --version 0.6.3 && \
     cargo install twiggy
 
+# Switch back to root for nginx setup
+USER root
+
 # Configure nginx for SSL
 RUN mkdir -p /var/www/certbot && \
     rm -f /etc/nginx/sites-enabled/default && \
@@ -105,9 +108,6 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && \
     ln -s /etc/nginx/sites-available/wizard /etc/nginx/sites-enabled/
-
-# Switch back to root for supervisor
-USER root
 
 # Expose ports
 EXPOSE 8080 8443
