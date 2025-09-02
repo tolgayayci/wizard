@@ -215,7 +215,7 @@ export async function importGitHubRepository(
     projectId = project.id;
 
     // Then clone the repository using the backend API
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8080';
+    const backendUrl = import.meta.env.VITE_API_URL;
     
     const response = await fetch(`${backendUrl}/api/github/clone`, {
       method: 'POST',
