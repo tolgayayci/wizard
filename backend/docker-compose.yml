@@ -6,10 +6,14 @@ services:
     container_name: wizard-backend
     ports:
       - "8080:8080"
+      - "8443:8443"
+      - "80:80"
     volumes:
       # Mount projects directory from host to container
-      # Change /data/wizard-projects to your preferred host path
       - /data/wizard-projects:/app/projects
+      # Mount for Let's Encrypt certificates
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
     env_file:
       - .env.production
     environment:
@@ -18,6 +22,7 @@ services:
       - HOST=0.0.0.0
       - PORT=8080
       - RUST_LOG=info
+      - EMAIL=admin@thewizard.app
     restart: unless-stopped
     networks:
       - wizard-network
