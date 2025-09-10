@@ -1,18 +1,13 @@
 # Use official Rust image with specific version
 FROM rust:1.88.0
 
-# Install system dependencies, nginx, certbot and solc
+# Install system dependencies and solc (without nginx/certbot)
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     git \
     curl \
     wget \
-    nginx \
-    certbot \
-    python3-certbot-nginx \
-    supervisor \
-    cron \
     && rm -rf /var/lib/apt/lists/* \
     && ARCH=$(uname -m) && \
     echo "Architecture: $ARCH" && \
@@ -94,23 +89,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
     cargo install cargo-stylus --version 0.6.3 && \
     cargo install twiggy
 
-# Switch back to root for nginx setup
-USER root
-
-# Configure nginx for SSL
-RUN mkdir -p /var/www/certbot && \
-    rm -f /etc/nginx/sites-enabled/default && \
-    mkdir -p /etc/nginx/ssl
-
-# Copy nginx and supervisor configs
-COPY nginx.conf /etc/nginx/sites-available/wizard
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh && \
-    ln -s /etc/nginx/sites-available/wizard /etc/nginx/sites-enabled/
-
-# Expose ports
-EXPOSE 8080 8443
+# Expose port for the application
+EXPOSE 8080
 
 # Set environment variables
 ENV RUST_LOG=info
@@ -118,5 +98,5 @@ ENV HOST=0.0.0.0
 ENV PORT=8080
 ENV STORAGE_PATH=/app/projects
 
-# Run with entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+# Run the application directly
+CMD ["/app/target/release/wizard-backend"]
