@@ -1,96 +1,19 @@
 import { supabase } from './supabase';
 import { User } from '@/lib/types';
 
-const HELLO_WORLD_CODE = `extern crate alloc;
-
-use stylus_sdk::prelude::*;
-
-sol_storage! {
-    #[entrypoint]
-    pub struct HelloWorld {
-        string greeting;
-    }
-}
-
-#[public]
-impl HelloWorld {
-    pub fn greet(&self) -> String {
-        "Hello, World!".into()
-    }
-}`;
-
-const COUNTER_CODE = `// Simple Counter Contract - Perfect for beginners
-// Dependencies: stylus-sdk = "0.9.0"
-
-extern crate alloc;
-
-/// Import items from the SDK. The prelude contains common traits and macros.
-use stylus_sdk::{alloy_primitives::U256, prelude::*};
-
-// Define some persistent storage using the Solidity ABI.
-// Counter will be the entrypoint.
-sol_storage! {
-    #[entrypoint]
-    pub struct Counter {
-        uint256 number;
-    }
-}
-
-/// Declare that Counter is a contract with the following external methods.
-#[public]
-impl Counter {
-    /// Gets the current counter value
-    pub fn number(&self) -> U256 {
-        self.number.get()
-    }
-
-    /// Sets a number in storage to a user-specified value
-    pub fn set_number(&mut self, new_number: U256) {
-        self.number.set(new_number);
-    }
-
-    /// Multiplies the current number by the input
-    pub fn mul_number(&mut self, multiplier: U256) {
-        self.number.set(multiplier * self.number.get());
-    }
-
-    /// Adds the input to the current number
-    pub fn add_number(&mut self, add_amount: U256) {
-        self.number.set(add_amount + self.number.get());
-    }
-
-    /// Increments the counter by 1
-    pub fn increment(&mut self) {
-        let number = self.number.get();
-        self.set_number(number + U256::from(1));
-    }
-
-    /// Decrements the counter by 1
-    pub fn decrement(&mut self) {
-        let number = self.number.get();
-        if number > U256::from(0) {
-            self.set_number(number - U256::from(1));
-        }
-    }
-
-    /// Resets the counter to zero
-    pub fn reset(&mut self) {
-        self.number.set(U256::from(0));
-    }
-}`;
 
 export async function createInitialProjects(userId: string) {
   try {
-    console.log('Creating initial projects for user:', userId);
+    console.log('Creating initial project for user:', userId);
     
     // Create Hello World project in database first
     const { data: helloWorldProject, error: error1 } = await supabase
       .from('projects')
       .insert({
         user_id: userId,
-        name: 'Hello World',
-        description: 'A simple Hello World smart contract to get started with Stylus',
-        code: HELLO_WORLD_CODE,
+        name: 'Hello World Contract',
+        description: 'A simple starter template to get you familiar with Stylus development. Features a basic counter contract with increment and decrement functions - perfect for learning the fundamentals of Rust smart contracts.',
+        code: '// This will be populated by the template initialization',
         updated_at: new Date().toISOString(),
         last_activity_at: new Date().toISOString(),
       })
@@ -102,59 +25,41 @@ export async function createInitialProjects(userId: string) {
       throw error1;
     }
 
-    // Create Counter project in database
-    const { data: counterProject, error: error2 } = await supabase
-      .from('projects')
-      .insert({
-        user_id: userId,
-        name: 'Counter',
-        description: 'A basic counter smart contract demonstrating state management',
-        code: COUNTER_CODE,
-        updated_at: new Date().toISOString(),
-        last_activity_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error2) {
-      console.error('Failed to create Counter project in database:', error2);
-      throw error2;
-    }
-
-    // Initialize backend filesystem for both projects
+    // Initialize project from hello-world template
     try {
-      const { initializeProjectFilesystem } = await import('@/lib/api');
+      console.log('Initializing project from hello-world template...');
       
-      // Initialize Hello World project filesystem
-      console.log('Initializing Hello World project filesystem...');
-      await initializeProjectFilesystem(
-        helloWorldProject.id,
-        userId,
-        'Hello World',
-        HELLO_WORLD_CODE,
-        ['stylus-sdk'] // Dependencies
-      );
+      // Call backend template initialization API
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/templates/initialize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          project_id: helloWorldProject.id,
+          template_id: 'hello-world',
+          project_name: 'Hello World Contract',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Template initialization failed: ${errorData.message || response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Template initialization result:', result);
       
-      // Initialize Counter project filesystem  
-      console.log('Initializing Counter project filesystem...');
-      await initializeProjectFilesystem(
-        counterProject.id,
-        userId,
-        'Counter',
-        COUNTER_CODE,
-        ['stylus-sdk'] // Dependencies - alloy-primitives is included in stylus-sdk
-      );
-      
-      console.log('Successfully initialized both starter projects');
+      console.log('Successfully initialized starter project from template');
     } catch (backendError) {
-      console.warn('Backend filesystem initialization failed:', backendError);
-      // Don't throw - projects are still created in database and will work
+      console.warn('Template initialization failed:', backendError);
+      // Don't throw - project is still created in database and will work
       // Backend will initialize filesystem on first compile if needed
     }
   } catch (error) {
-    console.error('Error creating initial projects:', error);
-    // Don't throw - let the user continue even if projects fail
-    // throw error;
+    console.error('Error creating initial project:', error);
+    // Don't throw - let the user continue even if project creation fails
   }
 }
 

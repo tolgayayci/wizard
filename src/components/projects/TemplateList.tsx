@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { PROJECT_TEMPLATES } from '@/lib/templates';
+import { useState, useEffect } from 'react';
+import { Template, listTemplates, initializeProjectFromTemplate } from '@/lib/api';
 import { TemplateListRow } from './TemplateListRow';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { Sparkles, Code2 } from 'lucide-react';
@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 
 interface TemplateListProps {
   searchQuery: string;
-  onUseTemplate: (template: typeof PROJECT_TEMPLATES[0]) => void;
+  onUseTemplate: (data: { name: string; description: string; template: Template }) => void;
   isLoading?: boolean;
   sortBy?: SortOption['value'];
 }
@@ -19,30 +19,66 @@ export function TemplateList({
   isLoading,
   sortBy = 'name_asc'
 }: TemplateListProps) {
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(true);
   const [creatingTemplate, setCreatingTemplate] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const handleUseTemplate = async (template: typeof PROJECT_TEMPLATES[0]) => {
-    // Prevent multiple clicks on same template
-    if (creatingTemplate === template.name) return;
+  // Fetch templates from API
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        setTemplatesLoading(true);
+        const fetchedTemplates = await listTemplates();
+        setTemplates(fetchedTemplates);
+      } catch (error) {
+        console.error('Failed to fetch templates:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load templates",
+          variant: "destructive",
+        });
+      } finally {
+        setTemplatesLoading(false);
+      }
+    };
 
-    // Ensure template code exists
-    if (!template.code) {
-      toast({
-        title: "Error",
-        description: "Template code is missing",
-        variant: "destructive",
-      });
-      return;
+    fetchTemplates();
+  }, [toast]);
+
+  // Generate clean project names from template IDs
+  const getProjectName = (template: Template): string => {
+    switch (template.id) {
+      case 'hello-world':
+        return 'Hello World';
+      case 'erc20-openzeppelin':
+        return 'ERC-20';
+      case 'erc721-openzeppelin':
+        return 'ERC-721';
+      case 'erc1155-openzeppelin':
+        return 'ERC-1155';
+      case 'ownable-openzeppelin':
+        return 'Ownable';
+      case 'access-control-openzeppelin':
+        return 'Access Control';
+      case 'merkle-proofs-openzeppelin':
+        return 'Merkle Tree';
+      default:
+        return template.id.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
     }
+  };
+
+  const handleUseTemplate = async (template: Template) => {
+    // Prevent multiple clicks on same template
+    if (creatingTemplate === template.id) return;
 
     // Set loading state for this specific template
-    setCreatingTemplate(template.name);
+    setCreatingTemplate(template.id);
 
     try {
-      // Create project with template name and data
+      // Create project with template data
       const projectData = {
-        name: template.name.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-'),
+        name: getProjectName(template),
         description: template.description,
         template: template,
       };
@@ -54,26 +90,23 @@ export function TemplateList({
     }
   };
 
-  if (isLoading) {
+  if (isLoading || templatesLoading) {
     return <LoadingSkeleton />;
   }
 
-  let filteredTemplates = PROJECT_TEMPLATES.filter(template =>
+  let filteredTemplates = templates.filter(template =>
     template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     template.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Apply sorting
-  filteredTemplates = [...filteredTemplates].sort((a, b) => {
-    switch (sortBy) {
-      case 'name_asc':
-        return a.name.localeCompare(b.name);
-      case 'name_desc':
-        return b.name.localeCompare(a.name);
-      default:
-        return 0;
-    }
-  });
+  // Templates are already sorted by backend in desired order
+  // Only apply additional sorting if explicitly requested
+  if (sortBy === 'name_desc') {
+    filteredTemplates = [...filteredTemplates].sort((a, b) => b.name.localeCompare(a.name));
+  } else if (sortBy === 'name_asc') {
+    filteredTemplates = [...filteredTemplates].sort((a, b) => a.name.localeCompare(b.name));
+  }
+  // For default sorting, keep backend order
 
   if (filteredTemplates.length === 0) {
     return (
@@ -122,12 +155,12 @@ export function TemplateList({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {filteredTemplates.map((template, index) => (
+            {filteredTemplates.map((template) => (
               <TemplateListRow
-                key={index}
+                key={template.id}
                 template={template}
                 onUseTemplate={handleUseTemplate}
-                isCreating={creatingTemplate === template.name}
+                isCreating={creatingTemplate === template.id}
               />
             ))}
           </tbody>

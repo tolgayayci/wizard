@@ -60,6 +60,7 @@ export function DeploymentTable({
   const navigate = useNavigate();
   const [currentPage, setCurrentPage] = useState(1);
   const [deploymentsWithProjects, setDeploymentsWithProjects] = useState<DeploymentWithProject[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const itemsPerPage = 10;
   
   useEffect(() => {
@@ -68,6 +69,7 @@ export function DeploymentTable({
   
   const fetchProjectNames = async () => {
     try {
+      setIsLoadingProjects(true);
       const projectIds = [...new Set(deployments.map(d => d.project_id))];
       
       if (projectIds.length === 0) {
@@ -93,6 +95,8 @@ export function DeploymentTable({
     } catch (error) {
       console.error('Error fetching project names:', error);
       setDeploymentsWithProjects(deployments);
+    } finally {
+      setIsLoadingProjects(false);
     }
   };
   
@@ -108,7 +112,7 @@ export function DeploymentTable({
     });
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingProjects) {
     return (
       <div className="rounded-lg border bg-card animate-pulse">
         {[...Array(5)].map((_, i) => (
@@ -124,7 +128,7 @@ export function DeploymentTable({
     );
   }
 
-  if (deploymentsWithProjects.length === 0) {
+  if (!isLoading && !isLoadingProjects && deploymentsWithProjects.length === 0) {
     return (
       <div className="h-[calc(100vh-20rem)] rounded-lg border bg-card flex items-center justify-center p-8">
         <div className="text-center max-w-sm mx-auto">

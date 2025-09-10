@@ -227,6 +227,112 @@ export async function initializeProjectFilesystem(
   }
 }
 
+// Template types and functions
+export interface Template {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  features: string[];
+  githubUrl?: string;
+}
+
+export interface ListTemplatesResponse {
+  templates: Template[];
+}
+
+/**
+ * Get list of available templates
+ */
+export async function listTemplates(): Promise<Template[]> {
+  try {
+    console.log('[API] Fetching available templates');
+    
+    const response = await api.get<ApiResponse<ListTemplatesResponse>>('/templates/list');
+    
+    if (response.data.success && response.data.data) {
+      console.log('[API] Templates retrieved:', response.data.data.templates);
+      return response.data.data.templates;
+    } else {
+      console.error('[API] Templates fetch failed:', response.data.message);
+      throw new Error(response.data.message || 'Failed to fetch templates');
+    }
+  } catch (error) {
+    console.error('[API] Error fetching templates:', error);
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        throw new Error(error.response.data?.message || 'Server error while fetching templates');
+      } else if (error.request) {
+        throw new Error('Unable to connect to server');
+      }
+    }
+    throw new Error(error instanceof Error ? error.message : 'Failed to fetch templates');
+  }
+}
+
+/**
+ * Initialize project from a template
+ */
+export async function initializeProjectFromTemplate(
+  projectId: string,
+  userId: string,
+  templateId: string,
+  projectName: string
+): Promise<{ success: boolean; message: string }> {
+  console.log('[API] Initializing project from template:', {
+    projectId,
+    userId,
+    templateId,
+    projectName
+  });
+  
+  try {
+    const payload = {
+      project_id: projectId,
+      user_id: userId,
+      template_id: templateId,
+      project_name: projectName.toLowerCase().replace(/[^a-z0-9-]/g, '_'),
+    };
+    
+    console.log('[API] Sending request to /templates/initialize with payload:', payload);
+    
+    const response = await api.post<ApiResponse<{ success: boolean; message: string }>>('/templates/initialize', payload);
+    
+    console.log('[API] Template initialization response:', response.data);
+    
+    if (response.data.success && response.data.data) {
+      return response.data.data;
+    } else {
+      console.error('[API] Template initialization failed:', response.data);
+      return {
+        success: false,
+        message: response.data.message || 'Failed to initialize project from template',
+      };
+    }
+  } catch (error) {
+    console.error('[API] Error initializing project from template:', error);
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        console.error('[API] Server error response:', error.response.data);
+        return {
+          success: false,
+          message: error.response.data?.message || 'Server error during template initialization',
+        };
+      } else if (error.request) {
+        return {
+          success: false,
+          message: 'Unable to connect to server',
+        };
+      }
+    }
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to initialize project from template',
+    };
+  }
+}
+
 // Types for formatting and linting
 export interface FormatResult {
   success: boolean;

@@ -11,7 +11,7 @@ import { UserNav } from '@/components/UserNav';
 import { ProjectList } from '@/components/projects/ProjectList';
 import { TemplateList } from '@/components/projects/TemplateList';
 import { DeploymentList } from '@/components/projects/DeploymentList';
-import { PROJECT_TEMPLATES } from '@/lib/templates';
+import { Template } from '@/lib/templates';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectTabs, SortOption } from '@/components/projects/ProjectTabs';
 import { ProjectEditDialog } from '@/components/projects/ProjectEditDialog';
@@ -36,6 +36,7 @@ export function ProjectsPage() {
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showGitHubImportDialog, setShowGitHubImportDialog] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const [templateCount, setTemplateCount] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -58,6 +59,7 @@ export function ProjectsPage() {
   useEffect(() => {
     fetchProjects();
     fetchDeploymentCount();
+    fetchTemplateCount();
   }, [sortBy]);
 
   const fetchProjects = async () => {
@@ -143,10 +145,21 @@ export function ProjectsPage() {
     }
   };
 
+  const fetchTemplateCount = async () => {
+    try {
+      const { listTemplates } = await import('@/lib/api');
+      const templates = await listTemplates();
+      setTemplateCount(templates.length);
+    } catch (error) {
+      console.error('Error fetching template count:', error);
+      setTemplateCount(0);
+    }
+  };
+
   const handleCreateProject = async (data: { 
     name: string; 
     description: string; 
-    template?: typeof PROJECT_TEMPLATES[0];
+    template?: Template;
   }) => {
     let projectId: string | null = null;
     
@@ -161,7 +174,7 @@ export function ProjectsPage() {
           user_id: user.id,
           name: data.name,
           description: data.description || '',
-          code: data.template?.code || '', // Empty string if no template
+          code: '', // Templates will be initialized via filesystem
           updated_at: new Date().toISOString(),
           last_activity_at: new Date().toISOString(),
         })
@@ -171,20 +184,37 @@ export function ProjectsPage() {
       if (error) throw error;
       projectId = project.id;
 
-      // Initialize backend filesystem (required for all projects)
+      // Initialize backend filesystem from template
       try {
-        const { initializeProjectFilesystem } = await import('@/lib/api');
-        
-        const result = await initializeProjectFilesystem(
-          project.id,
-          user.id,
-          data.name,
-          data.template?.code || '',
-          data.template?.dependencies || []
-        );
-        
-        if (!result.success) {
-          throw new Error(result.message || 'Failed to initialize project filesystem');
+        if (data.template) {
+          // Use template initialization
+          const { initializeProjectFromTemplate } = await import('@/lib/api');
+          
+          const result = await initializeProjectFromTemplate(
+            project.id,
+            user.id,
+            data.template.id,
+            data.name
+          );
+
+          if (!result.success) {
+            throw new Error(result.message || 'Failed to initialize project from template');
+          }
+        } else {
+          // Fall back to regular initialization for non-template projects
+          const { initializeProjectFilesystem } = await import('@/lib/api');
+          
+          const result = await initializeProjectFilesystem(
+            project.id,
+            user.id,
+            data.name,
+            '', // Empty code
+            []
+          );
+
+          if (!result.success) {
+            throw new Error(result.message || 'Failed to initialize project filesystem');
+          }
         }
         
         // Successfully initialized
@@ -321,7 +351,7 @@ export function ProjectsPage() {
       id: 'templates' as const,
       label: 'Templates',
       icon: Sparkles,
-      count: PROJECT_TEMPLATES.length,
+      count: templateCount,
     },
   ];
 

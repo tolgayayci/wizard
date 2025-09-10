@@ -13,4 +13,5 @@ pub mod local_compile;
 pub mod packages;
 pub mod projects;
 pub mod save_deployment;
+pub mod templates;
 pub mod verification;

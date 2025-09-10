@@ -115,7 +115,6 @@ export const networkConfigs = {
 } as const;
 
 // WalletConnect project ID from environment variables
-// Using a default project ID if not configured
 const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'a5f45a93797ad2d4a96c96b8c63e29e2';
 
 // Wagmi configuration

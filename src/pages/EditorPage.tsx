@@ -177,7 +177,7 @@ export function EditorPage() {
 
   // Auto-load lib.rs when project and user are ready
   useEffect(() => {
-    if (project && user && selectedFile === 'src/lib.rs' && !currentFileContent) {
+    if (project && user) {
       loadFileContent('src/lib.rs');
     }
   }, [project, user]);
@@ -197,9 +197,6 @@ export function EditorPage() {
       if (response.data.success) {
         setCurrentFileContent(response.data.data.content);
         setSelectedFile(filePath);
-        
-        // Update the project code to show the file content in editor
-        setProject(prev => prev ? { ...prev, code: response.data.data.content } : null);
         
         // File loaded successfully - no need for toast notification
       } else {
@@ -308,7 +305,7 @@ export function EditorPage() {
         user_id: user.id,
         project_id: project.id,
         path: selectedFile,
-        content: project.code,
+        content: currentFileContent,
       });
       
       if (response.data.success) {
@@ -343,7 +340,7 @@ export function EditorPage() {
           user_id: user.id,
           project_id: project.id,
           path: selectedFile,
-          content: project.code,
+          content: currentFileContent,
         });
         
         if (!saveResponse.data.success) {
@@ -401,7 +398,7 @@ export function EditorPage() {
               return [];
             }
           })(),
-          code_snapshot: project.code,
+          code_snapshot: currentFileContent,
           wasm_available: !!compilationData.wasm,
           abi_available: !!(compilationData.abi_json || compilationData.abi_solidity),
         };
@@ -434,7 +431,7 @@ export function EditorPage() {
           stdout: compilationData.output || '',
           stderr: compilationData.errors ? compilationData.errors.join('\n') : '',
           compilation_output: compilationData.output || '',
-          code_snapshot: project.code,
+          code_snapshot: currentFileContent,
           error_type: !compilationData.success ? 
             (compilationData.output?.includes('Connection refused') ? 'network' : 
              compilationData.output?.includes('error[E') ? 'compilation' : 'unknown') : null,
@@ -823,8 +820,8 @@ export function EditorPage() {
           {hasEditor && (
             <div style={{ width: getMainPanelWidth('editor') }} className="h-full overflow-hidden p-2">
               <Editor
-                value={project.code}
-                onChange={(code) => setProject(prev => prev ? { ...prev, code } : null)}
+                value={currentFileContent}
+                onChange={(content) => setCurrentFileContent(content)}
                 onCompile={handleCompile}
                 isCompiling={isCompiling}
                 projectId={project.id}

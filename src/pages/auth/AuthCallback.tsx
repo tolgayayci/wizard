@@ -250,7 +250,7 @@ export function AuthCallback() {
                 </h2>
                 <p className="text-muted-foreground mb-4">
                   {isNewUser 
-                    ? 'Your account has been created successfully. We\'ve added some starter projects to get you going.'
+                    ? 'Your account has been created successfully. We\'ve added a Hello World starter project to get you going.'
                     : 'You have been successfully signed in.'
                   }
                 </p>

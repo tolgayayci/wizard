@@ -226,18 +226,17 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     }, 500);
   };
 
-  // Check backend health on mount
+  // Check backend health on mount (but don't show error immediately)
   useEffect(() => {
     if (userId && projectId && !isSharedView) {
-      // Immediately check if backend is available
+      // Immediately check if backend is available but don't show error
       const checkBackend = async () => {
         try {
           const response = await axios.get(`${API_URL}/health`, { timeout: 5000 });
           if (response.status === 200) {
             setBackendConnectionError(false);
-          } else {
-            setBackendConnectionError(true);
           }
+          // Don't set error on health check failure - let WebSocket connection determine this
         } catch (error) {
           console.error('Backend health check failed:', error);
           // Don't immediately set error - let WebSocket connection attempt first
@@ -578,15 +577,18 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     }
     
     setIsConnecting(true);
-    // Don't clear error here - keep showing it until successful connection
+    // Don't show error immediately - only after multiple failed attempts
     
-    // Set a timeout to show error if connection doesn't succeed quickly
+    // Set a longer timeout and only show error if this is not the first attempt
     const connectionTimeout = setTimeout(() => {
-      if (!isConnected && reconnectAttemptsRef.current === 0) {
-        setBackendConnectionError(true);
+      if (!isConnected) {
         setIsConnecting(false);
+        // Only show error after several failed attempts, not on first connection
+        if (reconnectAttemptsRef.current > 2) {
+          setBackendConnectionError(true);
+        }
       }
-    }, 10000); // 10 seconds timeout for initial connection - give it more time
+    }, 15000); // 15 seconds timeout - give WebSocket more time
     
     const ws = new WebSocket(`${WS_URL}/ws/terminal?user_id=${userId}&project_id=${projectId}`);
     
