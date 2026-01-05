@@ -86,6 +86,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
     rustup target add wasm32-unknown-unknown && \
     rustup toolchain install 1.87.0 && \
     rustup target add --toolchain 1.87.0 wasm32-unknown-unknown && \
+    rustup toolchain install nightly-2024-09-05 && \
+    rustup target add --toolchain nightly-2024-09-05 wasm32-unknown-unknown && \
+    rustup component add rust-src --toolchain nightly-2024-09-05 && \
     rustup default stable && \
     cargo install cargo-stylus --version 0.6.3 && \
     cargo install twiggy
