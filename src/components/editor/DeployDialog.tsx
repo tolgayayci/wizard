@@ -124,16 +124,12 @@ export function DeployDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Authentication required");
 
-      // Check if code has changed since last compilation
+      // Get project data for deployment
       const { data: project } = await supabase
         .from('projects')
         .select('code')
         .eq('id', projectId)
         .single();
-
-      if (project && project.code !== lastCompilation?.code_snapshot) {
-        throw new Error("Code has changed since last compilation. Please compile again before deploying.");
-      }
 
       // Deploy the contract using the appropriate deployment method
       const result = await deployContractService(

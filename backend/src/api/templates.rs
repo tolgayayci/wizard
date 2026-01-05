@@ -437,7 +437,16 @@ fn create_default_template_metadata(template_id: &str) -> Template {
 fn copy_template_files(template_path: &PathBuf, project_path: &PathBuf, project_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     // Copy all files from template to project directory, excluding .git
     copy_dir_recursive(template_path, project_path, &[".git"])?;
-    
+
+    // Get the template name from the Cargo.toml for use in main.rs update
+    let template_cargo_path = template_path.join("Cargo.toml");
+    let template_crate_name = if template_cargo_path.exists() {
+        let content = fs::read_to_string(&template_cargo_path)?;
+        extract_crate_name(&content)
+    } else {
+        None
+    };
+
     // Update Cargo.toml with the new project name if it exists
     let cargo_toml_path = project_path.join("Cargo.toml");
     if cargo_toml_path.exists() {
@@ -445,8 +454,35 @@ fn copy_template_files(template_path: &PathBuf, project_path: &PathBuf, project_
         let updated_content = update_cargo_toml_name(&content, project_name);
         fs::write(&cargo_toml_path, updated_content)?;
     }
-    
+
+    // Update main.rs to use the new crate name for ABI export
+    let main_rs_path = project_path.join("src").join("main.rs");
+    if main_rs_path.exists() {
+        if let Some(old_crate_name) = template_crate_name {
+            let content = fs::read_to_string(&main_rs_path)?;
+            // Convert project name to valid Rust crate name (replace hyphens with underscores)
+            let new_crate_name = project_name.to_lowercase().replace('-', "_");
+            let old_crate_identifier = old_crate_name.replace('-', "_");
+            let updated_content = content.replace(&old_crate_identifier, &new_crate_name);
+            fs::write(&main_rs_path, updated_content)?;
+        }
+    }
+
     Ok(())
+}
+
+fn extract_crate_name(cargo_toml_content: &str) -> Option<String> {
+    for line in cargo_toml_content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("name = ") {
+            // Extract name from: name = "package-name"
+            let name = trimmed.trim_start_matches("name = ")
+                .trim_matches('"')
+                .trim_matches('\'');
+            return Some(name.to_string());
+        }
+    }
+    None
 }
 
 fn copy_dir_recursive(

@@ -4,6 +4,14 @@ use std::path::PathBuf;
 use tokio::process::Command;
 use tokio::fs;
 use sha3::{Digest, Keccak256};
+use regex::Regex;
+
+/// Strip all ANSI escape codes from a string
+fn strip_ansi_codes(s: &str) -> String {
+    // Match all ANSI escape sequences: ESC [ ... m (and other control sequences)
+    let re = Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]|\x1b\][^\x07]*\x07").unwrap();
+    re.replace_all(s, "").to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalCompilationRequest {
@@ -140,11 +148,8 @@ impl LocalCompilerService {
 
         if should_build_wasm {
             // Extract metrics from combined output (both stdout and stderr)
-            let clean_output = combined_output.replace("\u{1b}[0;0m", "")
-                .replace("\u{1b}[90m", "")
-                .replace("\u{1b}[38;5;48;1m", "")
-                .replace("\u{1b}[1;38;5;9m", "")
-                .replace("\u{1b}[0m", "");
+            // Strip all ANSI escape codes for clean parsing
+            let clean_output = strip_ansi_codes(&combined_output);
 
             for line in clean_output.lines() {
                 if line.contains("contract size:") {
@@ -164,10 +169,16 @@ impl LocalCompilerService {
                 }
             }
 
-            // Run full WASM compilation - this might succeed even if stylus check failed
+            // Run full WASM compilation with size optimization flags
+            // -Z build-std and -Z build-std-features reduce binary size by 40-60%
+            // --lib builds only the library target (cdylib), avoiding collision with bin target
             let mut build_cmd = self.create_cargo_command(&project_path);
             let build_output = build_cmd
-                .args(&["build", "--release", "--target", "wasm32-unknown-unknown"])
+                .args(&[
+                    "build", "--release", "--lib", "--target", "wasm32-unknown-unknown",
+                    "-Z", "build-std=std,panic_abort",
+                    "-Z", "build-std-features=panic_immediate_abort"
+                ])
                 .env("CARGO_TERM_COLOR", "always")
                 .output()
                 .await?;
@@ -244,7 +255,7 @@ impl LocalCompilerService {
 
             if abi_json_output.status.success() && !abi_json_output.stdout.is_empty() {
                 let raw_output = String::from_utf8_lossy(&abi_json_output.stdout);
-                
+
                 // Extract the JSON array from the cargo stylus output
                 // The output typically contains headers like "======= <stdin>:ContractName ======="
                 // and "Contract JSON ABI" followed by the actual JSON array

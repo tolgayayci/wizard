@@ -1,0 +1,5 @@
+# Build output
+**/target/
+
+# Cargo.lock for examples (they're libraries/examples, not applications)
+**/Cargo.lock

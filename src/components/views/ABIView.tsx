@@ -210,7 +210,9 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
           ) : (
             <ScrollArea className="flex-1">
               <div className="p-4 space-y-2">
-                {selectedDeployment.abi.map((method, index) => (
+                {selectedDeployment.abi
+                  .filter((method) => method.type !== 'error')
+                  .map((method, index) => (
                   <ABIMethodCard
                     key={index}
                     method={method}

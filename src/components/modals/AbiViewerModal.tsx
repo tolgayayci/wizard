@@ -69,6 +69,23 @@ export function AbiViewerModal({
     );
   }
 
+  // Sort ABI: constructor first, functions second, events third, errors last
+  const sortedAbi = [...abiJson].sort((a, b) => {
+    const priority = (type: string) => {
+      switch (type) {
+        case 'constructor': return 0;
+        case 'function': return 1;
+        case 'event': return 2;
+        case 'error': return 3;
+        default: return 4;
+      }
+    };
+    const orderDiff = priority(a.type) - priority(b.type);
+    if (orderDiff !== 0) return orderDiff;
+    // Secondary sort by name
+    return (a.name || '').localeCompare(b.name || '');
+  });
+
   const formattedJson = JSON.stringify(abiJson, null, 2);
 
   const handleCopyJson = async () => {
@@ -247,7 +264,7 @@ export function AbiViewerModal({
 
         <div className="flex-1 overflow-y-auto px-6">
           <div className="space-y-2 pt-3 pb-2">
-            {abiJson.map((item, index) => (
+            {sortedAbi.map((item, index) => (
               <div 
                 key={index}
                 className="border rounded-lg bg-card hover:bg-muted/30 transition-colors"
