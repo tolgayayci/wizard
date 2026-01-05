@@ -58,6 +58,7 @@ RUN useradd -m -u 1000 -s /bin/bash wizard && \
 # Copy project files
 COPY --chown=wizard:wizard Cargo.toml Cargo.lock ./
 COPY --chown=wizard:wizard src ./src
+COPY --chown=wizard:wizard examples ./examples
 
 # Build the application
 RUN cargo build --release
