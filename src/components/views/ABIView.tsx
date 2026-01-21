@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { History, PlayCircle, Activity, WifiOff, AlertCircle } from 'lucide-react';
 import { ethers } from 'ethers';
-import { BLOCKCHAIN_CONFIG, API_URL } from '@/lib/config';
+import { BLOCKCHAIN_CONFIG, API_URL, NETWORK_CONFIGS } from '@/lib/config';
 import axios from 'axios';
 
 interface ABIViewProps {
@@ -31,9 +31,13 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
   const [backendConnectionError, setBackendConnectionError] = useState(false);
   const { toast } = useToast();
 
-  const verifyContract = async (address: string) => {
+  const verifyContract = async (address: string, networkInfo?: Deployment['network_info']) => {
     try {
-      const provider = new ethers.JsonRpcProvider(BLOCKCHAIN_CONFIG.arbitrumSepolia.rpc);
+      // Use network-specific RPC, fallback to Sepolia for backward compatibility
+      const rpcUrl = networkInfo?.rpc_url ||
+        (networkInfo?.chain_id ? NETWORK_CONFIGS[networkInfo.chain_id as keyof typeof NETWORK_CONFIGS]?.rpcUrl : null) ||
+        BLOCKCHAIN_CONFIG.arbitrumSepolia.rpc;
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
       const code = await provider.getCode(address);
       return code !== "0x" && code !== "";
     } catch (error) {
@@ -60,8 +64,8 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
       if (data && data.length > 0) {
         const mostRecent = data[0];
         setSelectedDeployment(mostRecent);
-        // Verify the contract
-        const isValid = await verifyContract(mostRecent.contract_address);
+        // Verify the contract using the correct network RPC
+        const isValid = await verifyContract(mostRecent.contract_address, mostRecent.network_info);
         setIsContractVerified(isValid);
       }
     } catch (error) {
@@ -114,9 +118,9 @@ export function ABIView({ projectId, isSharedView = false }: ABIViewProps) {
     setSelectedDeployment(deployment);
 
     try {
-      const isValid = await verifyContract(address);
+      // Verify the contract using the correct network RPC
+      const isValid = await verifyContract(address, deployment.network_info);
       setIsContractVerified(isValid);
-      // Remove the error message - contracts can be deployed on different networks
     } catch (error) {
       // Only show error for actual verification failures, not network mismatches
       console.warn('Contract verification failed:', error);

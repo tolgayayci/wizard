@@ -414,7 +414,8 @@ export async function deployWithUserWallet(
     const checkResponse = await axios.post(`${API_URL}/api/check-activation`, {
       contract_address: deployedAddress,
       deployment_bytecode: compiledBytecode, // Include bytecode for more accurate checking
-      compressed_wasm_size: compressedWasmSize
+      compressed_wasm_size: compressedWasmSize,
+      chain_id: chainId, // Check activation on the correct chain
     });
     
     console.log('Check activation response:', checkResponse.data);

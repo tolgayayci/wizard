@@ -38,7 +38,7 @@ import { parseValue, formatValue } from '@/lib/contract';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { BLOCKCHAIN_CONFIG, getExplorerUrlByChainId, getNetworkInfo } from '@/lib/config';
+import { BLOCKCHAIN_CONFIG, NETWORK_CONFIGS, getExplorerUrlByChainId, getNetworkInfo } from '@/lib/config';
 import { useAccount, useWalletClient, useChainId, useSwitchChain } from 'wagmi';
 
 interface ABIExecuteDialogProps {
@@ -164,15 +164,26 @@ export function ABIExecuteDialog({
 
     try {
       let contract;
-      
-      if (deploymentMode === 'user' && walletClient) {
-        // Use connected wallet for external deployments
+
+      // Get the correct RPC URL for the deployment's network
+      const rpcUrl = networkInfo?.rpc_url ||
+        (networkInfo?.chain_id ? NETWORK_CONFIGS[networkInfo.chain_id as keyof typeof NETWORK_CONFIGS]?.rpcUrl : null) ||
+        BLOCKCHAIN_CONFIG.arbitrumSepolia.rpc;
+
+      // For view/pure functions, always use direct RPC (no wallet needed)
+      const isReadOnly = method.stateMutability === 'view' || method.stateMutability === 'pure';
+
+      if (isReadOnly) {
+        // Use direct RPC for read-only calls - more reliable than wallet provider
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        contract = new ethers.Contract(contractAddress, [method], provider);
+      } else if (deploymentMode === 'user' && walletClient) {
+        // Use connected wallet for state-changing methods
         const provider = new ethers.BrowserProvider(walletClient);
         const signer = await provider.getSigner();
         contract = new ethers.Contract(contractAddress, [method], signer);
       } else {
         // Use wizard wallet for wizard deployments
-        const rpcUrl = networkInfo?.rpc_url || BLOCKCHAIN_CONFIG.arbitrumSepolia.rpc;
         const provider = new ethers.JsonRpcProvider(rpcUrl);
         const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
         contract = new ethers.Contract(contractAddress, [method], wallet);
@@ -236,9 +247,19 @@ export function ABIExecuteDialog({
       });
     } catch (error) {
       console.error('Execution error:', error);
+
+      // Parse error message for better UX
+      let errorMessage = error instanceof Error ? error.message : 'Transaction failed';
+
+      // Check for Stylus-specific errors
+      if (errorMessage.includes('ProgramNotActivated') ||
+          (errorMessage.includes('missing revert data') && errorMessage.includes('CALL_EXCEPTION'))) {
+        errorMessage = 'Contract not activated. This Stylus contract needs to be activated before it can be called. Please redeploy through Wizard or manually activate via the ArbWasm precompile.';
+      }
+
       const errorResult: ExecutionResult = {
         status: 'error',
-        error: error instanceof Error ? error.message : 'Transaction failed',
+        error: errorMessage,
       };
       setResult(errorResult);
 

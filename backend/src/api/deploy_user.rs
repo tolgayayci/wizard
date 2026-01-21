@@ -84,6 +84,7 @@ pub struct PrepareDeployerRequest {
 pub struct CheckActivationRequest {
     pub contract_address: String,
     pub deployment_bytecode: Option<String>, // Add deployment bytecode for more accurate checking
+    pub chain_id: Option<u64>, // Chain ID to check activation on (defaults to backend config if not provided)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -315,27 +316,47 @@ async fn extract_wasm_size(body: web::Json<ExtractWasmSizeRequest>) -> Result<Ht
     }
 }
 
+// Get RPC URL for a given chain ID
+fn get_rpc_url_for_chain(chain_id: u64, default_rpc: &str) -> String {
+    match chain_id {
+        42161 => "https://arb1.arbitrum.io/rpc".to_string(),      // Arbitrum One
+        421614 => "https://sepolia-rollup.arbitrum.io/rpc".to_string(), // Arbitrum Sepolia
+        98985 => "https://testnet-rpc.superposition.so".to_string(),   // Superposition Testnet
+        55244 => "https://rpc.superposition.so".to_string(),           // Superposition Mainnet
+        _ => default_rpc.to_string(),
+    }
+}
+
 // Check if contract is already activated
 async fn check_activation(
     data: web::Data<AppState>,
     body: web::Json<CheckActivationRequest>
 ) -> Result<HttpResponse> {
-    info!("Checking activation status for contract: {}", body.contract_address);
-    
+    info!("Checking activation status for contract: {} on chain: {:?}",
+          body.contract_address, body.chain_id);
+
     let contract_address = Address::from_str(&body.contract_address).map_err(|e| {
         actix_web::error::ErrorBadRequest(format!("Invalid address: {}", e))
     })?;
-    
+
+    // Use the correct RPC URL based on chain_id, fallback to backend config
+    let rpc_url = match body.chain_id {
+        Some(chain_id) => get_rpc_url_for_chain(chain_id, &data.config.blockchain.rpc_url),
+        None => data.config.blockchain.rpc_url.clone(),
+    };
+
+    info!("Using RPC URL: {} for activation check", rpc_url);
+
     // Use deployment bytecode method if available (preferred)
     let (is_activated, version) = if let Some(deployment_bytecode) = &body.deployment_bytecode {
         info!("Using deployment bytecode for activation check (preferred method)");
-        match check_activation_with_deployment_bytecode(&data.config.blockchain.rpc_url, deployment_bytecode).await {
+        match check_activation_with_deployment_bytecode(&rpc_url, deployment_bytecode).await {
             Ok(result) => result,
             Err(e) => {
                 error!("Failed to check activation with deployment bytecode: {}", e);
                 info!("Falling back to contract address method");
                 // Fallback to original method
-                match check_contract_activation(&data.config.blockchain.rpc_url, contract_address).await {
+                match check_contract_activation(&rpc_url, contract_address).await {
                     Ok(result) => result,
                     Err(fallback_error) => {
                         error!("Both activation check methods failed: {}", fallback_error);
@@ -350,7 +371,7 @@ async fn check_activation(
         }
     } else {
         info!("Using fallback method (contract address) for activation check");
-        match check_contract_activation(&data.config.blockchain.rpc_url, contract_address).await {
+        match check_contract_activation(&rpc_url, contract_address).await {
             Ok(result) => result,
             Err(e) => {
                 error!("Failed to check contract activation: {}", e);
@@ -362,10 +383,10 @@ async fn check_activation(
             }
         }
     };
-    
-    info!("Contract {} activation status: {}, version: {:?}", 
+
+    info!("Contract {} activation status: {}, version: {:?}",
           body.contract_address, is_activated, version);
-    
+
     Ok(HttpResponse::Ok().json(CheckActivationResponse {
         is_activated,
         version,
