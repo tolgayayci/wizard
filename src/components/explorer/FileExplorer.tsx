@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle, useRef } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -116,6 +116,7 @@ export const FileExplorer = forwardRef<FileExplorerRef, FileExplorerProps>(({
   const [draggedItem, setDraggedItem] = useState<FileNode | null>(null);
   const [renamingNodePath, setRenamingNodePath] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const sensors = useSensors(
@@ -247,7 +248,8 @@ export const FileExplorer = forwardRef<FileExplorerRef, FileExplorerProps>(({
 
   // Keyboard shortcuts handler
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Only handle shortcuts when not renaming and file explorer is focused
+    // Only handle shortcuts when file explorer has focus
+    if (!containerRef.current?.contains(e.target as Node)) return;
     if (renamingNodePath || !selectedPath) return;
 
     const selectedNode = findNodeByPath(tree, selectedPath);
@@ -862,7 +864,7 @@ export const FileExplorer = forwardRef<FileExplorerRef, FileExplorerProps>(({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className={cn('flex flex-col h-full', className)}>
+      <div ref={containerRef} className={cn('flex flex-col h-full', className)} tabIndex={-1}>
       {!connectionError && (
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <div className="flex gap-1">

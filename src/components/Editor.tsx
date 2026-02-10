@@ -567,11 +567,8 @@ export function Editor({
         <EditorStatusBar
           lintStatus={lintStatus}
           lintIssueCount={lintIssues.length}
-          isFormatting={isFormatting}
-          onFormat={handleFormat}
           currentFile={currentFile}
           isSharedView={isSharedView}
-          isDisabled={!!connectionError}
         />
       )}
       {projectId && !isSharedView && (

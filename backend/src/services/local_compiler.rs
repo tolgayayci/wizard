@@ -6,6 +6,8 @@ use tokio::fs;
 use sha3::{Digest, Keccak256};
 use regex::Regex;
 
+use crate::services::toolchain;
+
 /// Strip all ANSI escape codes from a string
 fn strip_ansi_codes(s: &str) -> String {
     // Match all ANSI escape sequences: ESC [ ... m (and other control sequences)
@@ -45,46 +47,6 @@ impl LocalCompilerService {
         Self { storage_path }
     }
 
-    // Helper function to create a cargo command with proper nightly toolchain
-    fn create_cargo_command(&self, project_path: &PathBuf) -> Command {
-        // Check if rust-toolchain.toml exists and extract the channel
-        let toolchain_path = project_path.join("rust-toolchain.toml");
-        let default_toolchain = "nightly-2025-08-01";
-        
-        let toolchain = if toolchain_path.exists() {
-            // Try to read the toolchain file and extract channel
-            if let Ok(content) = std::fs::read_to_string(&toolchain_path) {
-                if let Some(channel_line) = content.lines().find(|line| line.trim().starts_with("channel")) {
-                    if let Some(channel) = channel_line.split('=').nth(1) {
-                        channel.trim().trim_matches('"').to_string()
-                    } else {
-                        default_toolchain.to_string()
-                    }
-                } else {
-                    default_toolchain.to_string()
-                }
-            } else {
-                default_toolchain.to_string()
-            }
-        } else {
-            default_toolchain.to_string()
-        };
-
-        let mut cmd = Command::new("rustup");
-        cmd.args(&["run", &toolchain, "cargo"]);
-        
-        // Check if running in Docker container (wizard user exists)
-        if std::path::Path::new("/home/wizard").exists() {
-            // Docker environment - use wizard user paths
-            cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-                .env("RUSTUP_HOME", "/home/wizard/.rustup")
-                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
-        }
-        
-        cmd.current_dir(project_path);
-        cmd
-    }
-
     pub async fn compile_project(&self, request: LocalCompilationRequest) -> Result<LocalCompilationResult> {
         let project_path = self.storage_path
             .join(&request.user_id)
@@ -108,7 +70,7 @@ impl LocalCompilerService {
         }
 
         // First run cargo stylus check to validate
-        let mut check_cmd = self.create_cargo_command(&project_path);
+        let mut check_cmd = toolchain::create_cargo_command(&project_path).await?;
         check_cmd.env("TERM", "xterm-256color")
             .env("FORCE_COLOR", "1")
             .env("CARGO_TERM_COLOR", "always")
@@ -172,7 +134,7 @@ impl LocalCompilerService {
             // Run full WASM compilation with size optimization flags
             // -Z build-std and -Z build-std-features reduce binary size by 40-60%
             // --lib builds only the library target (cdylib), avoiding collision with bin target
-            let mut build_cmd = self.create_cargo_command(&project_path);
+            let mut build_cmd = toolchain::create_cargo_command(&project_path).await?;
             let build_output = build_cmd
                 .args(&[
                     "build", "--release", "--lib", "--target", "wasm32-unknown-unknown",
@@ -237,7 +199,7 @@ impl LocalCompilerService {
 
             // Try to export ABI even if compilation had issues
             // Some contracts might still have valid ABIs
-            let mut abi_cmd = self.create_cargo_command(&project_path);
+            let mut abi_cmd = toolchain::create_cargo_command(&project_path).await?;
             let abi_solidity_output = abi_cmd
                 .args(&["stylus", "export-abi"])
                 .output()
@@ -247,7 +209,7 @@ impl LocalCompilerService {
                 abi_solidity = Some(String::from_utf8_lossy(&abi_solidity_output.stdout).to_string());
             }
 
-            let mut abi_json_cmd = self.create_cargo_command(&project_path);
+            let mut abi_json_cmd = toolchain::create_cargo_command(&project_path).await?;
             let abi_json_output = abi_json_cmd
                 .args(&["stylus", "export-abi", "--json"])
                 .output()
@@ -320,7 +282,7 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
-        let mut cmd = self.create_cargo_command(&project_path);
+        let mut cmd = toolchain::create_cargo_command(&project_path).await?;
         cmd.args(&["stylus", "export-abi"]);
 
         let abi_output = cmd.output().await?;
@@ -340,7 +302,7 @@ impl LocalCompilerService {
             .join(user_id)
             .join(project_id);
 
-        let mut cmd = self.create_cargo_command(&project_path);
+        let mut cmd = toolchain::create_cargo_command(&project_path).await?;
         cmd.args(&["stylus", "export-abi", "--json"]);
 
         let abi_output = cmd.output().await?;
@@ -502,12 +464,18 @@ impl LocalCompilerService {
         };
 
         // Run cargo stylus check to verify Arbitrum requirements
-        let mut stylus_check_cmd = Command::new("cargo");
-        stylus_check_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-            .env("RUSTUP_HOME", "/home/wizard/.rustup")
-            .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"))
-            .args(&["stylus", "check"])
-            .current_dir(&project_path);
+        let mut stylus_check_cmd = match toolchain::create_cargo_command(&project_path).await {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                log::warn!("Failed to create cargo command for stylus check: {}", e);
+                // Fallback to bare cargo command
+                let mut cmd = Command::new("cargo");
+                toolchain::apply_docker_env(&mut cmd);
+                cmd.current_dir(&project_path);
+                cmd
+            }
+        };
+        stylus_check_cmd.args(&["stylus", "check"]);
         
         let stylus_check_output = stylus_check_cmd.output().await;
 

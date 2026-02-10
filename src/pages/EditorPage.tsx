@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FileCode2, Terminal as TerminalIcon, PlayCircle, Wand2, Clock, Calendar, Pencil, Check, X, Share2, FolderTree, Package } from 'lucide-react';
+import { FileCode2, Terminal as TerminalIcon, PlayCircle, Wand2, Clock, Calendar, Pencil, Check, X, Share2, FolderTree, Package, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Editor } from '@/components/Editor';
@@ -21,6 +21,7 @@ import { FileExplorerView } from '@/components/explorer/FileExplorerView';
 import { FileExplorerRef } from '@/components/explorer/FileExplorer';
 import { Terminal, TerminalRef } from '@/components/views/Terminal';
 import { WalletButton } from '@/components/wallet/WalletButton';
+import { ChatView } from '@/components/chat';
 import { apiClient } from '@/lib/api';
 import axios from 'axios';
 
@@ -30,6 +31,7 @@ const VIEWS = [
   { id: 'explorer', title: 'Files', icon: FolderTree },
   { id: 'editor', title: 'Editor', icon: FileCode2 },
   { id: 'abi', title: 'Contract Interface', icon: PlayCircle },
+  { id: 'ai', title: 'AI Chat', icon: Bot },
   { id: 'console', title: 'Terminal', icon: TerminalIcon },
 ] as const;
 
@@ -175,9 +177,11 @@ export function EditorPage() {
     getUser();
   }, []);
 
-  // Auto-load lib.rs when project and user are ready
+  // Auto-load lib.rs once when project and user are first available
+  const initialFileLoadedRef = useRef(false);
   useEffect(() => {
-    if (project && user) {
+    if (project && user && !initialFileLoadedRef.current) {
+      initialFileLoadedRef.current = true;
       loadFileContent('src/lib.rs');
     }
   }, [project, user]);
@@ -586,41 +590,53 @@ export function EditorPage() {
   const hasConsole = activeViews.includes('console');
   const hasEditor = activeViews.includes('editor');
   const hasABI = activeViews.includes('abi');
+  const hasAI = activeViews.includes('ai');
   const hasExplorer = activeViews.includes('explorer');
 
-  const getMainPanelWidth = (viewType: 'explorer' | 'editor' | 'abi') => {
-    const activeViews = { hasExplorer, hasEditor, hasABI };
-    const activeCount = Object.values(activeViews).filter(Boolean).length;
-    
+  const getMainPanelWidth = (viewType: 'explorer' | 'editor' | 'abi' | 'ai') => {
+    const views = { hasExplorer, hasEditor, hasABI, hasAI };
+    const mainPanelCount = [views.hasExplorer, views.hasEditor, views.hasABI, views.hasAI].filter(Boolean).length;
+
     // If only one view is active, take full width
-    if (activeCount === 1) return '100%';
-    
+    if (mainPanelCount === 1) return '100%';
+
+    // Calculate right-side panels (ABI + AI)
+    const rightPanelCount = [views.hasABI, views.hasAI].filter(Boolean).length;
+    const hasRightPanels = rightPanelCount > 0;
+
     // If two views are active
-    if (activeCount === 2) {
-      if (!activeViews.hasExplorer) {
-        // Editor and ABI only: Editor gets 60%, ABI gets 40%
-        return viewType === 'editor' ? '60%' : '40%';
-      }
-      if (!activeViews.hasEditor) {
-        // Explorer and ABI: Explorer gets 25%, ABI gets 75%
-        return viewType === 'explorer' ? '25%' : '75%';
-      }
-      if (!activeViews.hasABI) {
-        // Explorer and Editor: Explorer gets 20%, Editor gets 80%
+    if (mainPanelCount === 2) {
+      if (views.hasExplorer && views.hasEditor) {
         return viewType === 'explorer' ? '20%' : '80%';
       }
-    }
-    
-    // All three views active: Explorer 14.29% (1/7), Editor 42.86% (3/7), ABI 42.86% (3/7)
-    if (activeCount === 3) {
-      switch (viewType) {
-        case 'explorer': return '14.29%';
-        case 'editor': return '42.86%';
-        case 'abi': return '42.86%';
-        default: return '42.86%';
+      if (views.hasEditor && hasRightPanels) {
+        return viewType === 'editor' ? '60%' : '40%';
+      }
+      if (views.hasExplorer && hasRightPanels) {
+        return viewType === 'explorer' ? '25%' : '75%';
+      }
+      // Two right panels (ABI + AI)
+      if (views.hasABI && views.hasAI) {
+        return '50%';
       }
     }
-    
+
+    // Three or more views
+    if (mainPanelCount >= 3) {
+      // Calculate widths based on active panels
+      if (views.hasExplorer) {
+        if (viewType === 'explorer') return '14%';
+      }
+      if (views.hasEditor) {
+        if (viewType === 'editor') return views.hasExplorer ? '43%' : '50%';
+      }
+      // ABI and AI share remaining space
+      if (viewType === 'abi' || viewType === 'ai') {
+        const remainingWidth = views.hasExplorer ? 43 : 50;
+        return rightPanelCount === 2 ? `${remainingWidth / 2}%` : `${remainingWidth}%`;
+      }
+    }
+
     return '100%';
   };
 
@@ -836,9 +852,18 @@ export function EditorPage() {
 
           {hasABI && (
             <div style={{ width: getMainPanelWidth('abi') }} className="h-full overflow-hidden p-2">
-              <ABIView 
-                projectId={project.id} 
+              <ABIView
+                projectId={project.id}
                 key={refreshABITrigger}
+              />
+            </div>
+          )}
+
+          {hasAI && (
+            <div style={{ width: getMainPanelWidth('ai') }} className="h-full overflow-hidden p-2">
+              <ChatView
+                projectId={project.id}
+                userId={user?.id || ''}
               />
             </div>
           )}

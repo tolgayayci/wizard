@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use tokio::process::Command;
 use tokio::fs;
 
+use crate::services::toolchain;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormatRequest {
     pub user_id: String,
@@ -75,15 +77,7 @@ impl FormatterService {
 
         // Run rustfmt on the file
         let mut fmt_cmd = Command::new("rustfmt");
-        
-        // Check if running in Docker container (wizard user exists)
-        if std::path::Path::new("/home/wizard").exists() {
-            // Docker environment - use wizard user paths
-            fmt_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-                .env("RUSTUP_HOME", "/home/wizard/.rustup")
-                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
-        }
-        // For local development, use system defaults (no env override needed)
+        toolchain::apply_docker_env(&mut fmt_cmd);
         
         let output = fmt_cmd
             .arg("--edition")
@@ -139,17 +133,8 @@ impl FormatterService {
         }
 
         // Run clippy with JSON output for better parsing
-        let mut clippy_cmd = Command::new("cargo");
-        
-        // Check if running in Docker container (wizard user exists)
-        if std::path::Path::new("/home/wizard").exists() {
-            // Docker environment - use wizard user paths
-            clippy_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-                .env("RUSTUP_HOME", "/home/wizard/.rustup")
-                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
-        }
-        // For local development, use system defaults (no env override needed)
-        
+        let mut clippy_cmd = toolchain::create_cargo_command(&project_path).await?;
+
         let output = clippy_cmd
             .args(&[
                 "clippy",

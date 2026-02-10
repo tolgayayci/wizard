@@ -47,15 +47,7 @@ impl FileSystemService {
         
         // Use cargo stylus new to create a proper Stylus project
         let mut new_cmd = tokio::process::Command::new("cargo");
-        
-        // Check if running in Docker container (wizard user exists)
-        if std::path::Path::new("/home/wizard").exists() {
-            // Docker environment - use wizard user paths
-            new_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-                .env("RUSTUP_HOME", "/home/wizard/.rustup")
-                .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
-        }
-        // For local development, use system defaults (no env override needed)
+        crate::services::toolchain::apply_docker_env(&mut new_cmd);
         
         let output = new_cmd
             .args(&["stylus", "new", project_id, "--minimal"])
@@ -68,15 +60,7 @@ impl FileSystemService {
             fs::create_dir_all(&project_path).await?;
             
             let mut init_cmd = tokio::process::Command::new("cargo");
-            
-            // Check if running in Docker container (wizard user exists)
-            if std::path::Path::new("/home/wizard").exists() {
-                // Docker environment - use wizard user paths
-                init_cmd.env("CARGO_HOME", "/home/wizard/.cargo")
-                    .env("RUSTUP_HOME", "/home/wizard/.rustup")
-                    .env("PATH", format!("/home/wizard/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"));
-            }
-            // For local development, use system defaults (no env override needed)
+            crate::services::toolchain::apply_docker_env(&mut init_cmd);
             
             let init_output = init_cmd
                 .args(&["stylus", "init", "--minimal"])
