@@ -29,7 +29,6 @@ interface EditorProps {
   projectName?: string;
   lastCompilation?: CompilationResult | null;
   onDeploySuccess?: () => void;
-  onSave?: () => void;
   isSharedView?: boolean;
   currentFile?: string | null;
 }
@@ -44,7 +43,6 @@ export function Editor({
   projectName,
   lastCompilation,
   onDeploySuccess,
-  onSave,
   isSharedView = false,
   currentFile,
 }: EditorProps) {
@@ -63,13 +61,18 @@ export function Editor({
   const [isMounted, setIsMounted] = useState(false);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
+  const handleSaveRef = useRef(handleSave);
   const lintDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLintedContentRef = useRef<string>('');
   const lastLintTimeRef = useRef<number>(0);
   const isVisibleRef = useRef<boolean>(true);
   const { theme, systemTheme } = useTheme();
   const { toast } = useToast();
-  
+
+  // Keep handleSave ref always pointing to the latest closure
+  // This prevents the stale closure bug in Monaco's addCommand
+  handleSaveRef.current = handleSave;
+
   // Determine language based on file extension
   const getLanguageFromFile = (filename: string | null | undefined): string => {
     if (!filename) return 'rust';
@@ -153,7 +156,9 @@ export function Editor({
       defineEditorTheme(monaco, currentIsDark);
     }, 100);
 
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, handleSave);
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      handleSaveRef.current();
+    });
     
     // Add content change listener for real-time linting
     editor.onDidChangeModelContent(() => {
@@ -210,9 +215,6 @@ export function Editor({
         title: "Changes saved",
         description: `${currentFile} has been saved successfully`,
       });
-
-      // Call onSave callback to update parent component
-      onSave?.();
       
       // Trigger linting after successful save for Rust files
       if (currentFile?.endsWith('.rs')) {

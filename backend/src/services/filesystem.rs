@@ -227,11 +227,19 @@ impl FileSystemService {
             return Err(anyhow::anyhow!("File content too large"));
         }
         
+        // Prevent accidental empty overwrites of files that have content
+        if content.trim().is_empty() && full_path.exists() {
+            let existing = fs::read_to_string(&full_path).await.unwrap_or_default();
+            if !existing.trim().is_empty() {
+                return Err(anyhow::anyhow!("Cannot overwrite non-empty file with empty content"));
+            }
+        }
+
         // Create parent directories if needed
         if let Some(parent) = full_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        
+
         fs::write(&full_path, content).await?;
         
         let metadata = fs::metadata(&full_path).await?;
