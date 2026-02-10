@@ -1,5 +1,4 @@
 pub mod cargo_manager;
-pub mod chat;
 pub mod embed_parser;
 pub mod filesystem;
 pub mod formatter;

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { FileCode2, Terminal as TerminalIcon, PlayCircle, Wand2, Clock, Calendar, Pencil, Check, X, Share2, FolderTree, Package, Bot } from 'lucide-react';
+import { FileCode2, Terminal as TerminalIcon, PlayCircle, Wand2, Clock, Calendar, Pencil, Check, X, Share2, FolderTree, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Editor } from '@/components/Editor';
@@ -21,7 +21,6 @@ import { FileExplorerView } from '@/components/explorer/FileExplorerView';
 import { FileExplorerRef } from '@/components/explorer/FileExplorer';
 import { Terminal, TerminalRef } from '@/components/views/Terminal';
 import { WalletButton } from '@/components/wallet/WalletButton';
-import { ChatView } from '@/components/chat';
 import { apiClient } from '@/lib/api';
 import axios from 'axios';
 
@@ -31,7 +30,6 @@ const VIEWS = [
   { id: 'explorer', title: 'Files', icon: FolderTree },
   { id: 'editor', title: 'Editor', icon: FileCode2 },
   { id: 'abi', title: 'Contract Interface', icon: PlayCircle },
-  { id: 'ai', title: 'AI Chat', icon: Bot },
   { id: 'console', title: 'Terminal', icon: TerminalIcon },
 ] as const;
 
@@ -590,18 +588,17 @@ export function EditorPage() {
   const hasConsole = activeViews.includes('console');
   const hasEditor = activeViews.includes('editor');
   const hasABI = activeViews.includes('abi');
-  const hasAI = activeViews.includes('ai');
   const hasExplorer = activeViews.includes('explorer');
 
-  const getMainPanelWidth = (viewType: 'explorer' | 'editor' | 'abi' | 'ai') => {
-    const views = { hasExplorer, hasEditor, hasABI, hasAI };
-    const mainPanelCount = [views.hasExplorer, views.hasEditor, views.hasABI, views.hasAI].filter(Boolean).length;
+  const getMainPanelWidth = (viewType: 'explorer' | 'editor' | 'abi') => {
+    const views = { hasExplorer, hasEditor, hasABI };
+    const mainPanelCount = [views.hasExplorer, views.hasEditor, views.hasABI].filter(Boolean).length;
 
     // If only one view is active, take full width
     if (mainPanelCount === 1) return '100%';
 
     // Calculate right-side panels (ABI + AI)
-    const rightPanelCount = [views.hasABI, views.hasAI].filter(Boolean).length;
+    const rightPanelCount = [views.hasABI].filter(Boolean).length;
     const hasRightPanels = rightPanelCount > 0;
 
     // If two views are active
@@ -616,9 +613,6 @@ export function EditorPage() {
         return viewType === 'explorer' ? '25%' : '75%';
       }
       // Two right panels (ABI + AI)
-      if (views.hasABI && views.hasAI) {
-        return '50%';
-      }
     }
 
     // Three or more views
@@ -631,7 +625,7 @@ export function EditorPage() {
         if (viewType === 'editor') return views.hasExplorer ? '43%' : '50%';
       }
       // ABI and AI share remaining space
-      if (viewType === 'abi' || viewType === 'ai') {
+      if (viewType === 'abi') {
         const remainingWidth = views.hasExplorer ? 43 : 50;
         return rightPanelCount === 2 ? `${remainingWidth / 2}%` : `${remainingWidth}%`;
       }
@@ -859,14 +853,6 @@ export function EditorPage() {
             </div>
           )}
 
-          {hasAI && (
-            <div style={{ width: getMainPanelWidth('ai') }} className="h-full overflow-hidden p-2">
-              <ChatView
-                projectId={project.id}
-                userId={user?.id || ''}
-              />
-            </div>
-          )}
         </div>
 
         {hasConsole && (
