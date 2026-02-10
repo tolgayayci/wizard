@@ -420,8 +420,50 @@ export async function lintCode(
       const apiError = error.response.data as ApiResponse<any>;
       throw new Error(apiError.error?.message || 'Failed to lint code');
     }
-    throw error instanceof Error 
-      ? error 
+    throw error instanceof Error
+      ? error
       : new Error('Failed to lint code');
+  }
+}
+
+// Chat types and functions
+export interface ChatResponseData {
+  response: string;
+  timestamp: string;
+}
+
+/**
+ * Send a chat message to the AI assistant
+ * The AI has access only to the specified project directory
+ */
+export async function sendChatMessage(
+  userId: string,
+  projectId: string,
+  message: string
+): Promise<ApiResponse<ChatResponseData>> {
+  try {
+    const payload = {
+      user_id: userId,
+      project_id: projectId,
+      message,
+    };
+
+    const { data: response } = await api.post<ApiResponse<ChatResponseData>>('/chat', payload);
+
+    return response;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.data) {
+      return error.response.data as ApiResponse<ChatResponseData>;
+    }
+    return {
+      success: false,
+      message: 'Failed to send chat message',
+      data: null,
+      error: {
+        code: 'CHAT_ERROR',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        details: null,
+      },
+    };
   }
 }
