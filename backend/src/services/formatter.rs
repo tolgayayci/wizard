@@ -1,10 +1,24 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tokio::process::Command;
 use tokio::fs;
 
 use crate::services::toolchain;
+
+/// Read the Rust edition from a project's Cargo.toml, defaulting to "2021".
+fn read_edition(project_path: &Path) -> String {
+    let cargo_toml = project_path.join("Cargo.toml");
+    std::fs::read_to_string(&cargo_toml)
+        .ok()
+        .and_then(|content| {
+            content.lines()
+                .find(|l| l.trim().starts_with("edition"))
+                .and_then(|l| l.split('=').nth(1))
+                .map(|e| e.trim().trim_matches('"').to_string())
+        })
+        .unwrap_or_else(|| "2021".to_string())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FormatRequest {
@@ -81,7 +95,7 @@ impl FormatterService {
         
         let output = fmt_cmd
             .arg("--edition")
-            .arg("2021")
+            .arg(&read_edition(&project_path))
             .arg("--emit")
             .arg("stdout")
             .arg(&file_path)

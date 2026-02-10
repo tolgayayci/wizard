@@ -61,17 +61,13 @@ export function Editor({
   const [isMounted, setIsMounted] = useState(false);
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
-  const handleSaveRef = useRef(handleSave);
+  const handleSaveRef = useRef<() => void>(() => {});
   const lintDebounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastLintedContentRef = useRef<string>('');
   const lastLintTimeRef = useRef<number>(0);
   const isVisibleRef = useRef<boolean>(true);
   const { theme, systemTheme } = useTheme();
   const { toast } = useToast();
-
-  // Keep handleSave ref always pointing to the latest closure
-  // This prevents the stale closure bug in Monaco's addCommand
-  handleSaveRef.current = handleSave;
 
   // Determine language based on file extension
   const getLanguageFromFile = (filename: string | null | undefined): string => {
@@ -238,6 +234,10 @@ export function Editor({
       setIsSaving(false);
     }
   };
+
+  // Keep ref always pointing to the latest handleSave closure
+  // This prevents the stale closure bug in Monaco's addCommand (bound once at mount)
+  handleSaveRef.current = handleSave;
 
   const handleFormat = async () => {
     if (!projectId || !currentFile || isFormatting || isSharedView) return;

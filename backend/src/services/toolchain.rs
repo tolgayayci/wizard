@@ -5,7 +5,7 @@ use regex::Regex;
 
 /// The default toolchain to use when no rust-toolchain.toml is present.
 /// Must match a toolchain pre-installed in both Dockerfile and Dockerfile.dev.
-pub const DEFAULT_TOOLCHAIN: &str = "nightly-2024-09-05";
+pub const DEFAULT_TOOLCHAIN: &str = "stable";
 
 /// Maximum allowed length for a toolchain channel string.
 const MAX_TOOLCHAIN_LEN: usize = 64;
@@ -167,6 +167,6 @@ mod tests {
     #[test]
     fn test_read_toolchain_defaults() {
         let channel = read_toolchain_channel(Path::new("/nonexistent/path"));
-        assert_eq!(channel, DEFAULT_TOOLCHAIN);
+        assert_eq!(channel, "stable");
     }
 }
