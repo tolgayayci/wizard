@@ -12,13 +12,15 @@ const MAX_TOOLCHAIN_LEN: usize = 64;
 
 /// Read the toolchain channel from a project's rust-toolchain.toml.
 /// Returns DEFAULT_TOOLCHAIN if the file does not exist or cannot be parsed.
+/// Forces nightly: if the project specifies a non-nightly channel (e.g. "stable", "1.88.0"),
+/// DEFAULT_TOOLCHAIN is used instead, because cargo-stylus requires nightly (-Z flags).
 pub fn read_toolchain_channel(project_path: &Path) -> String {
     let toolchain_path = project_path.join("rust-toolchain.toml");
     if !toolchain_path.exists() {
         return DEFAULT_TOOLCHAIN.to_string();
     }
 
-    match std::fs::read_to_string(&toolchain_path) {
+    let channel = match std::fs::read_to_string(&toolchain_path) {
         Ok(content) => {
             content.lines()
                 .find(|line| line.trim().starts_with("channel"))
@@ -28,7 +30,16 @@ pub fn read_toolchain_channel(project_path: &Path) -> String {
                 .unwrap_or_else(|| DEFAULT_TOOLCHAIN.to_string())
         }
         Err(_) => DEFAULT_TOOLCHAIN.to_string(),
+    };
+
+    // cargo-stylus requires nightly for -Z flags.
+    // If the project specifies a non-nightly channel, use DEFAULT_TOOLCHAIN instead.
+    if !channel.starts_with("nightly") {
+        log::info!("Project toolchain '{}' is not nightly, using '{}' (cargo-stylus requires nightly)", channel, DEFAULT_TOOLCHAIN);
+        return DEFAULT_TOOLCHAIN.to_string();
     }
+
+    channel
 }
 
 /// Validate a toolchain channel string to prevent injection attacks.
