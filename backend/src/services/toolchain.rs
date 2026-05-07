@@ -38,6 +38,54 @@ pub fn channel_is_nightly(channel: &str) -> bool {
     channel.starts_with("nightly")
 }
 
+/// Resolve `~/.rustup/toolchains` for the rustup home (in the wizard Docker user, or the
+/// invoking user's home otherwise).
+fn rustup_toolchains_dir() -> Option<std::path::PathBuf> {
+    let rustup_home = if is_docker_env() {
+        std::path::PathBuf::from("/home/wizard/.rustup")
+    } else {
+        std::env::var_os("RUSTUP_HOME").map(std::path::PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".rustup")))?
+    };
+    Some(rustup_home.join("toolchains"))
+}
+
+/// Find the toolchain dir for `channel` (any host triple suffix). rustup names dirs as
+/// `<channel>-<host-triple>`, e.g. `1.88.0-aarch64-unknown-linux-gnu`.
+fn find_toolchain_dir(channel: &str) -> Option<std::path::PathBuf> {
+    let toolchains = rustup_toolchains_dir()?;
+    let entries = std::fs::read_dir(&toolchains).ok()?;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name == channel || name.starts_with(&format!("{}-", channel)) {
+            return Some(entry.path());
+        }
+    }
+    None
+}
+
+/// If a toolchain dir exists but is missing its manifest (i.e. partial install crashed),
+/// remove it so rustup can install fresh. Idempotent and safe to call before every install.
+pub fn repair_broken_toolchain(channel: &str) -> Result<()> {
+    let Some(dir) = find_toolchain_dir(channel) else { return Ok(()); };
+    let manifest = dir.join("lib/rustlib/multirust-channel-manifest.toml");
+    if manifest.exists() { return Ok(()); }
+
+    log::warn!("Toolchain '{}' at {:?} is missing its manifest; removing for fresh install", channel, dir);
+    std::fs::remove_dir_all(&dir)
+        .with_context(|| format!("Failed to remove broken toolchain dir {:?}", dir))?;
+
+    // Also clear stale update-hash so rustup doesn't think the install is up to date.
+    if let Some(toolchains_dir) = rustup_toolchains_dir() {
+        let rustup_home = toolchains_dir.parent().unwrap_or(&toolchains_dir);
+        let hash = rustup_home.join("update-hashes")
+            .join(dir.file_name().unwrap_or_default());
+        let _ = std::fs::remove_file(&hash);
+    }
+    Ok(())
+}
+
 /// Validate a toolchain channel string to prevent injection attacks.
 /// Allowed: "stable", "nightly", "nightly-YYYY-MM-DD", "X.Y.Z", "beta", "beta-YYYY-MM-DD".
 pub fn validate_toolchain_channel(channel: &str) -> Result<()> {
@@ -83,6 +131,11 @@ pub async fn ensure_toolchain_installed(channel: &str) -> Result<()> {
     let start = std::time::Instant::now();
     log::info!("Ensuring toolchain '{}' is installed...", channel);
 
+    // Heal corrupted toolchain dirs: a previous install may have crashed mid-run, leaving a
+    // directory without a manifest. rustup then refuses to operate on it ("Missing manifest"
+    // / "could not remove component file"). Detect this and wipe before installing.
+    repair_broken_toolchain(channel)?;
+
     // Install the toolchain
     let mut install_cmd = Command::new("rustup");
     apply_docker_env(&mut install_cmd);
@@ -108,6 +161,13 @@ pub async fn ensure_toolchain_installed(channel: &str) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        // "Missing manifest" can also surface here if the toolchain dir was wiped between calls.
+        // Try one more time after a forced repair before giving up.
+        if stderr.contains("Missing manifest") || stderr.contains("could not remove") {
+            log::warn!("wasm32 add failed for '{}', repairing and retrying: {}", channel, stderr.trim());
+            repair_broken_toolchain(channel)?;
+            return Box::pin(ensure_toolchain_installed(channel)).await;
+        }
         bail!("Failed to add wasm32 target for '{}': {}", channel, stderr);
     }
 
