@@ -1,7 +1,24 @@
 use anyhow::{Result, Context, bail};
 use std::path::Path;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::process::Command;
+use tokio::sync::Mutex as AsyncMutex;
+use once_cell::sync::Lazy;
 use regex::Regex;
+
+/// Per-channel async mutex so concurrent compile/lint/version requests don't race against
+/// each other when installing the same toolchain. rustup is not safe to invoke concurrently
+/// for the same channel — racing installs leave the directory in inconsistent states.
+static INSTALL_LOCKS: Lazy<StdMutex<HashMap<String, Arc<AsyncMutex<()>>>>> =
+    Lazy::new(|| StdMutex::new(HashMap::new()));
+
+fn install_lock_for(channel: &str) -> Arc<AsyncMutex<()>> {
+    let mut map = INSTALL_LOCKS.lock().unwrap();
+    map.entry(channel.to_string())
+        .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+        .clone()
+}
 
 /// The default toolchain to use when no rust-toolchain.toml is present.
 /// Must match a toolchain pre-installed in both Dockerfile and Dockerfile.dev.
@@ -65,18 +82,24 @@ fn find_toolchain_dir(channel: &str) -> Option<std::path::PathBuf> {
     None
 }
 
-/// If a toolchain dir exists but is missing its manifest (i.e. partial install crashed),
-/// remove it so rustup can install fresh. Idempotent and safe to call before every install.
+/// A toolchain is considered healthy if its cargo binary exists. A manifest alone is
+/// insufficient — we've seen rustup leave a manifest behind from a download phase but no
+/// bin/ dir, after which a retry fails with "detected conflict: 'bin/cargo'".
+fn is_toolchain_healthy(dir: &std::path::Path) -> bool {
+    dir.join("bin/cargo").exists() && dir.join("lib/rustlib/multirust-channel-manifest.toml").exists()
+}
+
+/// If a toolchain dir exists but is in an inconsistent state (no manifest, or no binaries
+/// despite having a manifest), remove it so rustup can install fresh. Also clears any stale
+/// update-hash so rustup doesn't short-circuit to "up to date".
 pub fn repair_broken_toolchain(channel: &str) -> Result<()> {
     let Some(dir) = find_toolchain_dir(channel) else { return Ok(()); };
-    let manifest = dir.join("lib/rustlib/multirust-channel-manifest.toml");
-    if manifest.exists() { return Ok(()); }
+    if is_toolchain_healthy(&dir) { return Ok(()); }
 
-    log::warn!("Toolchain '{}' at {:?} is missing its manifest; removing for fresh install", channel, dir);
+    log::warn!("Toolchain '{}' at {:?} is incomplete; removing for fresh install", channel, dir);
     std::fs::remove_dir_all(&dir)
         .with_context(|| format!("Failed to remove broken toolchain dir {:?}", dir))?;
 
-    // Also clear stale update-hash so rustup doesn't think the install is up to date.
     if let Some(toolchains_dir) = rustup_toolchains_dir() {
         let rustup_home = toolchains_dir.parent().unwrap_or(&toolchains_dir);
         let hash = rustup_home.join("update-hashes")
@@ -84,6 +107,28 @@ pub fn repair_broken_toolchain(channel: &str) -> Result<()> {
         let _ = std::fs::remove_file(&hash);
     }
     Ok(())
+}
+
+/// Force-wipe regardless of state. Used as a last-resort retry path after rustup install fails.
+fn force_wipe_toolchain(channel: &str) -> Result<()> {
+    let Some(dir) = find_toolchain_dir(channel) else { return Ok(()); };
+    log::warn!("Force-wiping toolchain '{}' at {:?}", channel, dir);
+    let _ = std::fs::remove_dir_all(&dir);
+    if let Some(toolchains_dir) = rustup_toolchains_dir() {
+        let rustup_home = toolchains_dir.parent().unwrap_or(&toolchains_dir);
+        let hash = rustup_home.join("update-hashes")
+            .join(dir.file_name().unwrap_or_default());
+        let _ = std::fs::remove_file(&hash);
+    }
+    Ok(())
+}
+
+/// Stderr signatures that mean "rustup left the toolchain in an inconsistent state — wipe and retry".
+fn is_recoverable_install_error(stderr: &str) -> bool {
+    stderr.contains("Missing manifest")
+        || stderr.contains("could not remove")
+        || stderr.contains("detected conflict")
+        || stderr.contains("rolling back changes")
 }
 
 /// Validate a toolchain channel string to prevent injection attacks.
@@ -128,15 +173,30 @@ pub fn apply_docker_env(cmd: &mut Command) {
 pub async fn ensure_toolchain_installed(channel: &str) -> Result<()> {
     validate_toolchain_channel(channel)?;
 
+    // Serialize concurrent installs of the same channel; rustup is not safe to run twice in
+    // parallel for the same toolchain.
+    let lock = install_lock_for(channel);
+    let _guard = lock.lock().await;
+
+    // Fast path: if cargo binary exists and the manifest is in place, the toolchain is healthy.
+    // Skip the install entirely so concurrent compile/lint requests don't re-download.
+    if let Some(dir) = find_toolchain_dir(channel) {
+        if is_toolchain_healthy(&dir) {
+            // Still ensure wasm32 target — cheap if already there.
+            return ensure_wasm_and_components(channel).await;
+        }
+    }
+
+    install_toolchain_with_retry(channel, false).await
+}
+
+async fn install_toolchain_with_retry(channel: &str, after_force_wipe: bool) -> Result<()> {
     let start = std::time::Instant::now();
     log::info!("Ensuring toolchain '{}' is installed...", channel);
 
-    // Heal corrupted toolchain dirs: a previous install may have crashed mid-run, leaving a
-    // directory without a manifest. rustup then refuses to operate on it ("Missing manifest"
-    // / "could not remove component file"). Detect this and wipe before installing.
+    // Heal known-broken states (missing manifest or missing binaries) before install.
     repair_broken_toolchain(channel)?;
 
-    // Install the toolchain
     let mut install_cmd = Command::new("rustup");
     apply_docker_env(&mut install_cmd);
     let output = install_cmd
@@ -147,10 +207,21 @@ pub async fn ensure_toolchain_installed(channel: &str) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        if !after_force_wipe && is_recoverable_install_error(&stderr) {
+            log::warn!("Install of '{}' failed recoverably, force-wiping and retrying: {}",
+                       channel, stderr.trim());
+            force_wipe_toolchain(channel)?;
+            return Box::pin(install_toolchain_with_retry(channel, true)).await;
+        }
         bail!("Failed to install toolchain '{}': {}", channel, stderr);
     }
 
-    // Add wasm32-unknown-unknown target
+    ensure_wasm_and_components(channel).await?;
+    log::info!("Toolchain '{}' ready in {:.1}s", channel, start.elapsed().as_secs_f64());
+    Ok(())
+}
+
+async fn ensure_wasm_and_components(channel: &str) -> Result<()> {
     let mut target_cmd = Command::new("rustup");
     apply_docker_env(&mut target_cmd);
     let output = target_cmd
@@ -161,12 +232,11 @@ pub async fn ensure_toolchain_installed(channel: &str) -> Result<()> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        // "Missing manifest" can also surface here if the toolchain dir was wiped between calls.
-        // Try one more time after a forced repair before giving up.
-        if stderr.contains("Missing manifest") || stderr.contains("could not remove") {
-            log::warn!("wasm32 add failed for '{}', repairing and retrying: {}", channel, stderr.trim());
-            repair_broken_toolchain(channel)?;
-            return Box::pin(ensure_toolchain_installed(channel)).await;
+        if is_recoverable_install_error(&stderr) {
+            log::warn!("wasm32 add failed for '{}', force-wiping and reinstalling: {}",
+                       channel, stderr.trim());
+            force_wipe_toolchain(channel)?;
+            return Box::pin(install_toolchain_with_retry(channel, true)).await;
         }
         bail!("Failed to add wasm32 target for '{}': {}", channel, stderr);
     }
@@ -187,7 +257,6 @@ pub async fn ensure_toolchain_installed(channel: &str) -> Result<()> {
         }
     }
 
-    log::info!("Toolchain '{}' ready in {:.1}s", channel, start.elapsed().as_secs_f64());
     Ok(())
 }
 

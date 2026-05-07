@@ -6169,6 +6169,7 @@ dependencies = [
  "hex",
  "log",
  "notify",
+ "once_cell",
  "portable-pty",
  "rand 0.8.5",
  "regex",
