@@ -63,10 +63,10 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const reconnectAttemptsRef = useRef(0);
   const isTerminalDisabledRef = useRef(false);
   const { theme, systemTheme } = useTheme();
-  const [versions] = useState({
-    rust: 'v1.75.0',
-    rustup: 'v1.26.0',
-    cargoStylus: 'v0.6.1',
+  const [versions, setVersions] = useState({
+    rust: '...',
+    rustup: '...',
+    cargoStylus: '...',
   });
   
   const { toast } = useToast();
@@ -492,6 +492,24 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       applyTerminalTheme(xtermRef.current, isDark);
     }
   }, [isDark, isInitialized]);
+
+  useEffect(() => {
+    if (!isConnected || !userId || !projectId) return;
+    let cancelled = false;
+    axios
+      .get(`${API_URL}/api/toolchain/versions`, { params: { user_id: userId, project_id: projectId } })
+      .then((res) => {
+        if (cancelled) return;
+        const v = res.data ?? {};
+        setVersions({
+          rust: v.rust ? `v${v.rust}` : '?',
+          rustup: v.rustup ? `v${v.rustup}` : '?',
+          cargoStylus: v.cargo_stylus ? `v${v.cargo_stylus}` : '?',
+        });
+      })
+      .catch(() => { /* leave loading state */ });
+    return () => { cancelled = true; };
+  }, [isConnected, userId, projectId]);
   
   // Control cursor visibility based on disabled state
   useEffect(() => {

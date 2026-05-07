@@ -98,6 +98,7 @@ async fn main() -> std::io::Result<()> {
                     .configure(api::projects::configure)
                     .configure(api::save_deployment::configure)
                     .configure(api::templates::configure)
+                    .configure(api::toolchain::configure)
                     .configure(api::verification::configure),
             )
             .service(

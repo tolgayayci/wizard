@@ -146,6 +146,60 @@ pub async fn create_cargo_command(project_path: &Path) -> Result<Command> {
     Ok(cmd)
 }
 
+/// Versions of the rust/rustup/cargo-stylus tooling currently in use for a given project.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ToolchainVersions {
+    pub channel: String,
+    pub rust: String,
+    pub rustup: String,
+    pub cargo_stylus: String,
+}
+
+async fn run_capture(cmd: &mut Command) -> Option<String> {
+    cmd.output().await.ok().and_then(|out| {
+        if out.status.success() {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if s.is_empty() { None } else { Some(s) }
+        } else {
+            None
+        }
+    })
+}
+
+/// Parse the version string from output like "rustc 1.83.0 (90b35a623 2024-11-26)" → "1.83.0".
+fn extract_version(s: &str) -> String {
+    s.split_whitespace().nth(1).unwrap_or(s).to_string()
+}
+
+/// Get the rust/rustup/cargo-stylus versions used for a given project.
+pub async fn get_versions(project_path: &Path) -> Result<ToolchainVersions> {
+    let channel = read_toolchain_channel(project_path);
+    ensure_toolchain_installed(&channel).await?;
+
+    let mut rustc_cmd = Command::new("rustup");
+    rustc_cmd.args(&["run", &channel, "rustc", "--version"]);
+    apply_docker_env(&mut rustc_cmd);
+    let rust = run_capture(&mut rustc_cmd).await
+        .map(|s| extract_version(&s))
+        .unwrap_or_else(|| channel.clone());
+
+    let mut rustup_cmd = Command::new("rustup");
+    rustup_cmd.args(&["--version"]);
+    apply_docker_env(&mut rustup_cmd);
+    let rustup = run_capture(&mut rustup_cmd).await
+        .map(|s| extract_version(&s))
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let mut stylus_cmd = Command::new("cargo");
+    stylus_cmd.args(&["stylus", "--version"]);
+    apply_docker_env(&mut stylus_cmd);
+    let cargo_stylus = run_capture(&mut stylus_cmd).await
+        .map(|s| extract_version(&s))
+        .unwrap_or_else(|| "unknown".to_string());
+
+    Ok(ToolchainVersions { channel, rust, rustup, cargo_stylus })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
