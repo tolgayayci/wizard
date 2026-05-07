@@ -11,35 +11,31 @@ pub const DEFAULT_TOOLCHAIN: &str = "nightly-2025-02-01";
 const MAX_TOOLCHAIN_LEN: usize = 64;
 
 /// Read the toolchain channel from a project's rust-toolchain.toml.
-/// Returns DEFAULT_TOOLCHAIN if the file does not exist or cannot be parsed.
-/// Forces nightly: if the project specifies a non-nightly channel (e.g. "stable", "1.88.0"),
-/// DEFAULT_TOOLCHAIN is used instead, because cargo-stylus requires nightly (-Z flags).
+/// Honors whatever channel the project specifies (e.g. "1.83.0", "stable", "nightly-YYYY-MM-DD").
+/// Falls back to DEFAULT_TOOLCHAIN if the file is missing, unreadable, empty, or contains an
+/// invalid channel string.
 pub fn read_toolchain_channel(project_path: &Path) -> String {
     let toolchain_path = project_path.join("rust-toolchain.toml");
     if !toolchain_path.exists() {
         return DEFAULT_TOOLCHAIN.to_string();
     }
 
-    let channel = match std::fs::read_to_string(&toolchain_path) {
+    match std::fs::read_to_string(&toolchain_path) {
         Ok(content) => {
             content.lines()
                 .find(|line| line.trim().starts_with("channel"))
                 .and_then(|line| line.split('=').nth(1))
                 .map(|ch| ch.trim().trim_matches('"').to_string())
-                .filter(|ch| !ch.is_empty())
+                .filter(|ch| !ch.is_empty() && validate_toolchain_channel(ch).is_ok())
                 .unwrap_or_else(|| DEFAULT_TOOLCHAIN.to_string())
         }
         Err(_) => DEFAULT_TOOLCHAIN.to_string(),
-    };
-
-    // cargo-stylus requires nightly for -Z flags.
-    // If the project specifies a non-nightly channel, use DEFAULT_TOOLCHAIN instead.
-    if !channel.starts_with("nightly") {
-        log::info!("Project toolchain '{}' is not nightly, using '{}' (cargo-stylus requires nightly)", channel, DEFAULT_TOOLCHAIN);
-        return DEFAULT_TOOLCHAIN.to_string();
     }
+}
 
-    channel
+/// Returns true if the channel is a nightly toolchain (supports unstable -Z flags).
+pub fn channel_is_nightly(channel: &str) -> bool {
+    channel.starts_with("nightly")
 }
 
 /// Validate a toolchain channel string to prevent injection attacks.
@@ -179,5 +175,32 @@ mod tests {
     fn test_read_toolchain_defaults() {
         let channel = read_toolchain_channel(Path::new("/nonexistent/path"));
         assert_eq!(channel, "nightly-2025-02-01");
+    }
+
+    #[test]
+    fn test_channel_is_nightly() {
+        assert!(channel_is_nightly("nightly"));
+        assert!(channel_is_nightly("nightly-2025-02-01"));
+        assert!(!channel_is_nightly("stable"));
+        assert!(!channel_is_nightly("1.83.0"));
+        assert!(!channel_is_nightly("beta"));
+    }
+
+    #[test]
+    fn test_read_toolchain_honors_project_channel() {
+        let dir = std::env::temp_dir().join(format!("wizard-toolchain-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("rust-toolchain.toml"), "[toolchain]\nchannel = \"1.83.0\"\n").unwrap();
+        assert_eq!(read_toolchain_channel(&dir), "1.83.0");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_read_toolchain_rejects_invalid() {
+        let dir = std::env::temp_dir().join(format!("wizard-toolchain-bad-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("rust-toolchain.toml"), "[toolchain]\nchannel = \"rm -rf /\"\n").unwrap();
+        assert_eq!(read_toolchain_channel(&dir), "nightly-2025-02-01");
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

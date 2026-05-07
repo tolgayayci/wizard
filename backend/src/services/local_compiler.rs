@@ -131,16 +131,22 @@ impl LocalCompilerService {
                 }
             }
 
-            // Run full WASM compilation with size optimization flags
-            // -Z build-std and -Z build-std-features reduce binary size by 40-60%
-            // --lib builds only the library target (cdylib), avoiding collision with bin target
+            // Run full WASM compilation. -Z build-std flags shrink the binary by 40-60% but
+            // require nightly; on stable channels we build without them so projects that pin a
+            // specific stable rustc still compile.
+            let channel = toolchain::read_toolchain_channel(&project_path);
             let mut build_cmd = toolchain::create_cargo_command(&project_path).await?;
-            let build_output = build_cmd
-                .args(&[
-                    "build", "--release", "--lib", "--target", "wasm32-unknown-unknown",
+            let mut build_args: Vec<&str> = vec![
+                "build", "--release", "--lib", "--target", "wasm32-unknown-unknown",
+            ];
+            if toolchain::channel_is_nightly(&channel) {
+                build_args.extend_from_slice(&[
                     "-Z", "build-std=std,panic_abort",
-                    "-Z", "build-std-features=panic_immediate_abort"
-                ])
+                    "-Z", "build-std-features=panic_immediate_abort",
+                ]);
+            }
+            let build_output = build_cmd
+                .args(&build_args)
                 .env("CARGO_TERM_COLOR", "always")
                 .output()
                 .await?;
