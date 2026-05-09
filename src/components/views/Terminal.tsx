@@ -110,7 +110,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     if (allowedCommands.includes(cmd)) {
       return `cargo stylus ${cmd}`;
     }
-    
+
     // If user types 'cargo stylus' + subcommand, validate the subcommand
     if (cmd.startsWith('cargo stylus ')) {
       const subcommand = cmd.substring('cargo stylus '.length).split(' ')[0];
@@ -118,12 +118,21 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
         return userCommand; // Return original with proper casing
       }
     }
-    
+
+    // cargo test — runs the project's #[cfg(test)] suite on the host. Bare "test" maps to
+    // "cargo test"; "cargo test [args]" passes through (e.g. cargo test --release some_test).
+    if (cmd === 'test') {
+      return 'cargo test';
+    }
+    if (cmd === 'cargo test' || cmd.startsWith('cargo test ')) {
+      return userCommand;
+    }
+
     // Special case: allow clear command
     if (cmd === 'clear') {
       return 'clear';
     }
-    
+
     // Reject everything else
     return null;
   };
@@ -369,6 +378,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
               term.write('  \x1b[1;32mreplay\x1b[0m        Replay a transaction in gdb [aliases: r]\r\n');
               term.write('  \x1b[1;32mtrace\x1b[0m         Trace a transaction [aliases: t]\r\n');
               term.write('  \x1b[1;32msimulate\x1b[0m      Simulate a transaction [aliases: s]\r\n');
+              term.write('  \x1b[1;32mtest\x1b[0m          Run the project test suite (cargo test)\r\n');
               term.write('  \x1b[1;32mhelp\x1b[0m          Print this message or the help of the given subcommand(s)\r\n');
               term.write('  \x1b[1;32mclear\x1b[0m         Clear terminal\r\n');
               term.write('\r\n\x1b[2mTip: Just type the command name (e.g., "check" runs "cargo stylus check")\x1b[0m\r\n$ ');
