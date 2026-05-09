@@ -79,6 +79,8 @@ export function GitHubImportDialog({
     name: string;
     description?: string;
     url: string;
+    branch?: string;
+    path?: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filesImported, setFilesImported] = useState<number>(0);
@@ -127,9 +129,14 @@ export function GitHubImportDialog({
         throw new Error('Repository is private. Only public repositories can be imported.');
       }
 
-      // Validate if it's a Stylus project
-      const stylusCheck = await validateStylusProject(parsedRepo.owner, parsedRepo.repo);
-      
+      // Validate it's a Stylus project — checks Cargo.toml at the (optional) subpath/branch.
+      const stylusCheck = await validateStylusProject(
+        parsedRepo.owner,
+        parsedRepo.repo,
+        parsedRepo.branch,
+        parsedRepo.path,
+      );
+
       if (!stylusCheck.isValid) {
         throw new Error(stylusCheck.reason || 'Not a valid Stylus project');
       }
@@ -141,11 +148,15 @@ export function GitHubImportDialog({
       };
 
       setRepoInfo(repoData);
-      
-      // Auto-fill project details
-      const suggestedName = suggestProjectName(repoData.name);
+
+      // Auto-fill project details. For a subfolder import, prefer the deepest path segment
+      // as the suggested project name (more meaningful than the repo name).
+      const suggestedName = suggestProjectName(repoData.name, parsedRepo.path);
       form.setValue('projectName', suggestedName);
-      form.setValue('projectDescription', repoData.description || `Imported from ${parsedRepo.owner}/${parsedRepo.repo}`);
+      const sourceLabel = parsedRepo.path
+        ? `${parsedRepo.owner}/${parsedRepo.repo}/${parsedRepo.path}`
+        : `${parsedRepo.owner}/${parsedRepo.repo}`;
+      form.setValue('projectDescription', repoData.description || `Imported from ${sourceLabel}`);
 
       setImportState('validated');
     } catch (error) {
@@ -181,7 +192,9 @@ export function GitHubImportDialog({
         data.repoUrl,
         data.projectName,
         data.projectDescription || '',
-        userId
+        userId,
+        repoInfo.branch,
+        repoInfo.path,
       );
 
       setFilesImported(result.filesCount);
@@ -276,6 +289,13 @@ export function GitHubImportDialog({
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-medium">{repoInfo.owner}/{repoInfo.name}</div>
+                    {(repoInfo.branch || repoInfo.path) && (
+                      <div className="text-xs text-muted-foreground font-mono mt-1">
+                        {repoInfo.branch && <>branch: {repoInfo.branch}</>}
+                        {repoInfo.branch && repoInfo.path && <> · </>}
+                        {repoInfo.path && <>path: {repoInfo.path}</>}
+                      </div>
+                    )}
                     {repoInfo.description && (
                       <div className="text-sm text-muted-foreground mt-1">
                         {repoInfo.description}

@@ -14,6 +14,11 @@ pub struct CloneRequest {
     pub user_id: String,
     pub project_id: String,
     pub repo_url: String,
+    /// Optional branch/tag/SHA to clone. Defaults to the repo's default branch.
+    pub branch: Option<String>,
+    /// Optional subdirectory inside the repository to import as the project root. When set,
+    /// only the contents of that subdirectory are placed in the project (no parent files).
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -70,19 +75,44 @@ async fn clone_repository(
         }
     }
 
-    // Clean up the repository URL
+    // Clean up inputs
     let clean_url = req.repo_url.trim();
-    
-    // Check if directory exists and is empty
+    let subpath = req.path.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let branch = req.branch.as_deref().map(str::trim).filter(|s| !s.is_empty());
+
+    // Reject obviously dangerous subpath values (absolute, traversal, etc.) to keep the move
+    // step constrained to the cloned tree.
+    if let Some(sp) = subpath {
+        if sp.starts_with('/') || sp.split('/').any(|c| c == ".." || c.is_empty()) {
+            return HttpResponse::BadRequest().json(ApiResponse::<CloneResult> {
+                success: false,
+                message: "Invalid subdirectory path".to_string(),
+                data: None,
+                error: Some(ApiError {
+                    code: "INVALID_PATH".to_string(),
+                    message: format!("Path '{}' is not allowed", sp),
+                    details: None,
+                }),
+            });
+        }
+    }
+
+    // Wipe any pre-existing project dir so the import is fresh.
     if project_path.exists() {
-        // Remove existing directory to ensure clean clone
         if let Err(e) = std::fs::remove_dir_all(&project_path) {
             warn!("Failed to clean existing directory: {}", e);
         }
     }
 
-    // Create the project directory
-    if let Err(e) = std::fs::create_dir_all(&project_path) {
+    // For a subpath import, clone into a sibling temp dir and move only the requested
+    // subdirectory into the final project path. For a full-repo import, clone directly.
+    let temp_clone_path = project_path.with_file_name(format!("{}_temp", req.project_id));
+    if temp_clone_path.exists() {
+        let _ = std::fs::remove_dir_all(&temp_clone_path);
+    }
+    let clone_target = if subpath.is_some() { &temp_clone_path } else { &project_path };
+
+    if let Err(e) = std::fs::create_dir_all(clone_target) {
         return HttpResponse::InternalServerError().json(ApiResponse::<CloneResult> {
             success: false,
             message: "Failed to create project directory".to_string(),
@@ -95,16 +125,22 @@ async fn clone_repository(
         });
     }
 
-    // Run git clone
-    info!("Cloning repository {} to {:?}", clean_url, project_path);
-    let output = match Command::new("git")
-        .args(&["clone", clean_url, "."])
-        .current_dir(&project_path)
-        .output()
-        .await
-    {
+    // Build git clone command: shallow clone, optional branch.
+    info!(
+        "Cloning {} (branch={:?}, path={:?}) to {:?}",
+        clean_url, branch, subpath, clone_target
+    );
+    let mut git_cmd = Command::new("git");
+    git_cmd.arg("clone").arg("--depth").arg("1");
+    if let Some(b) = branch {
+        git_cmd.arg("--branch").arg(b);
+    }
+    git_cmd.arg(clean_url).arg(".").current_dir(clone_target);
+
+    let output = match git_cmd.output().await {
         Ok(output) => output,
         Err(e) => {
+            let _ = std::fs::remove_dir_all(clone_target);
             return HttpResponse::InternalServerError().json(ApiResponse::<CloneResult> {
                 success: false,
                 message: "Failed to execute git clone".to_string(),
@@ -120,6 +156,7 @@ async fn clone_repository(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let _ = std::fs::remove_dir_all(clone_target);
         return HttpResponse::BadRequest().json(ApiResponse::<CloneResult> {
             success: false,
             message: "Git clone failed".to_string(),
@@ -132,7 +169,50 @@ async fn clone_repository(
         });
     }
 
-    // Count files in the cloned repository
+    // Strip .git — for a subpath import the history wouldn't match the imported subset
+    // anyway, and for a full clone we don't want users to accidentally `git push` from the
+    // browser terminal back to the upstream repo.
+    let _ = std::fs::remove_dir_all(clone_target.join(".git"));
+
+    // For a subpath import, move only the requested subtree into the project dir.
+    if let Some(sp) = subpath {
+        let source_subdir = temp_clone_path.join(sp);
+        if !source_subdir.exists() {
+            let _ = std::fs::remove_dir_all(&temp_clone_path);
+            return HttpResponse::BadRequest().json(ApiResponse::<CloneResult> {
+                success: false,
+                message: format!("Subdirectory '{}' not found in repository", sp),
+                data: None,
+                error: Some(ApiError {
+                    code: "SUBDIR_NOT_FOUND".to_string(),
+                    message: format!("Path '{}' does not exist on branch {}", sp, branch.unwrap_or("the default")),
+                    details: None,
+                }),
+            });
+        }
+        if let Err(e) = std::fs::create_dir_all(&project_path) {
+            let _ = std::fs::remove_dir_all(&temp_clone_path);
+            return HttpResponse::InternalServerError().json(ApiResponse::<CloneResult> {
+                success: false,
+                message: "Failed to create project directory".to_string(),
+                data: None,
+                error: Some(ApiError { code: "DIRECTORY_ERROR".to_string(), message: e.to_string(), details: None }),
+            });
+        }
+        if let Err(e) = move_dir_contents(&source_subdir, &project_path) {
+            let _ = std::fs::remove_dir_all(&temp_clone_path);
+            let _ = std::fs::remove_dir_all(&project_path);
+            return HttpResponse::InternalServerError().json(ApiResponse::<CloneResult> {
+                success: false,
+                message: "Failed to extract subdirectory".to_string(),
+                data: None,
+                error: Some(ApiError { code: "MOVE_FAILED".to_string(), message: e.to_string(), details: None }),
+            });
+        }
+        let _ = std::fs::remove_dir_all(&temp_clone_path);
+    }
+
+    // Count files in the cloned/extracted project
     let files_count = count_project_files(&project_path);
     
     if files_count == 0 {
@@ -500,4 +580,35 @@ async fn list_repositories(
             })
         }
     }
+}
+
+/// Move all entries from `source` into `dest`, recursively. `dest` is created if missing.
+fn move_dir_contents(source: &Path, dest: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dest)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dest.join(entry.file_name());
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
+}
+
+fn copy_dir_recursive(source: &Path, dest: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dest)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dest.join(entry.file_name());
+        if from.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
 }
