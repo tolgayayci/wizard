@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils';
 
 interface Section {
-  id: 'projects' | 'templates';
+  id: 'projects' | 'templates' | 'deployments' | 'ethcluj';
   label: string;
   icon: any;
   count: number;

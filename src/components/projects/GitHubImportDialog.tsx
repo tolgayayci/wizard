@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -62,6 +62,8 @@ interface GitHubImportDialogProps {
   onClose: () => void;
   onSuccess: (projectId: string) => void;
   userId: string;
+  /** When provided, the URL field is seeded with this value and validated on open. */
+  defaultRepoUrl?: string;
 }
 
 type ImportState = 'initial' | 'validating' | 'validated' | 'importing' | 'success' | 'error';
@@ -71,6 +73,7 @@ export function GitHubImportDialog({
   onClose,
   onSuccess,
   userId,
+  defaultRepoUrl,
 }: GitHubImportDialogProps) {
   const [importState, setImportState] = useState<ImportState>('initial');
   const [repoInfo, setRepoInfo] = useState<{
@@ -224,6 +227,16 @@ export function GitHubImportDialog({
     form.reset();
     onClose();
   };
+
+  // When opened with a default URL (e.g. from the EthCluj tab), seed the input and kick off
+  // validation so the user can hit Import without retyping. Re-runs if the URL prop changes.
+  useEffect(() => {
+    if (open && defaultRepoUrl) {
+      form.setValue('repoUrl', defaultRepoUrl, { shouldValidate: true });
+      handleUrlChange(defaultRepoUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultRepoUrl]);
 
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {

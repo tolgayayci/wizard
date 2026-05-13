@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Code2Icon, Blocks, Sparkles, Wand2, Bug, Rocket } from 'lucide-react';
+import { Code2Icon, Blocks, Sparkles, Wand2, Bug, Rocket, Trophy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ThemeProvider } from 'next-themes';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -11,6 +11,8 @@ import { UserNav } from '@/components/UserNav';
 import { ProjectList } from '@/components/projects/ProjectList';
 import { TemplateList } from '@/components/projects/TemplateList';
 import { DeploymentList } from '@/components/projects/DeploymentList';
+import { EthClujList } from '@/components/projects/EthClujList';
+import { ETHCLUJ_TEMPLATES } from '@/lib/ethcluj-templates';
 import { Template } from '@/lib/templates';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
 import { ProjectTabs, SortOption } from '@/components/projects/ProjectTabs';
@@ -30,11 +32,12 @@ export function ProjectsPage() {
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [activeSection, setActiveSection] = useState<'projects' | 'templates' | 'deployments'>('projects');
+  const [activeSection, setActiveSection] = useState<'projects' | 'templates' | 'deployments' | 'ethcluj'>('projects');
   const [deploymentCount, setDeploymentCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [showGitHubImportDialog, setShowGitHubImportDialog] = useState(false);
+  const [importDefaultUrl, setImportDefaultUrl] = useState<string | undefined>(undefined);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
   const [templateCount, setTemplateCount] = useState(0);
   const navigate = useNavigate();
@@ -353,6 +356,12 @@ export function ProjectsPage() {
       icon: Sparkles,
       count: templateCount,
     },
+    {
+      id: 'ethcluj' as const,
+      label: 'ETH Cluj',
+      icon: Trophy,
+      count: ETHCLUJ_TEMPLATES.length,
+    },
   ];
 
   const getActiveContent = () => {
@@ -386,6 +395,17 @@ export function ProjectsPage() {
           <DeploymentList
             searchQuery={searchQuery}
             isLoading={isLoading}
+          />
+        );
+      case 'ethcluj':
+        return (
+          <EthClujList
+            searchQuery={searchQuery}
+            sortBy={sortBy}
+            onUseTemplate={(template) => {
+              setImportDefaultUrl(template.githubUrl);
+              setShowGitHubImportDialog(true);
+            }}
           />
         );
     }
@@ -486,9 +506,13 @@ export function ProjectsPage() {
 
       <GitHubImportDialog
         open={showGitHubImportDialog}
-        onClose={() => setShowGitHubImportDialog(false)}
+        onClose={() => {
+          setShowGitHubImportDialog(false);
+          setImportDefaultUrl(undefined);
+        }}
         onSuccess={handleGitHubImportSuccess}
         userId={currentUser?.id || ''}
+        defaultRepoUrl={importDefaultUrl}
       />
 
     </div>
