@@ -18,7 +18,7 @@ export const ETHCLUJ_TEMPLATES: EthClujTemplate[] = [
     description:
       'Build a token vault: users deposit an ERC-20 in exchange for proportional shares, then withdraw their share of the pool. Exercises external contract calls, error wrapping, and share accounting.',
     category: 'Workshop',
-    difficulty: 'Intermediate',
+    difficulty: 'Beginner',
     features: [
       'ERC-20 deposits / withdrawals',
       'Proportional share accounting',
@@ -33,7 +33,7 @@ export const ETHCLUJ_TEMPLATES: EthClujTemplate[] = [
     description:
       'Implement an on-chain message inbox where addresses can send each other arbitrary byte payloads. Practice with storage maps, event emission, and read-only views.',
     category: 'Workshop',
-    difficulty: 'Beginner',
+    difficulty: 'Intermediate',
     features: [
       'Per-address message storage',
       'Event emission',
@@ -48,7 +48,7 @@ export const ETHCLUJ_TEMPLATES: EthClujTemplate[] = [
     description:
       'Mini lending market: deposit collateral, borrow against it, and track health factors. Combines vault mechanics with interest accrual and liquidation conditions.',
     category: 'Workshop',
-    difficulty: 'Advanced',
+    difficulty: 'Expert',
     features: [
       'Collateralized borrowing',
       'Interest accrual',

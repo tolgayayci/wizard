@@ -55,6 +55,8 @@ export function TemplateListRow({ template, onUseTemplate, isCreating = false }:
         return 'text-amber-800 bg-amber-100 border-amber-300 dark:text-amber-200 dark:bg-amber-950/60 dark:border-amber-700';
       case 'Advanced':
         return 'text-orange-800 bg-orange-100 border-orange-300 dark:text-orange-200 dark:bg-orange-950/60 dark:border-orange-700';
+      case 'Expert':
+        return 'text-red-800 bg-red-100 border-red-300 dark:text-red-200 dark:bg-red-950/60 dark:border-red-700';
       default:
         return 'text-gray-700 bg-gray-100 border-gray-300 dark:text-gray-300 dark:bg-gray-800 dark:border-gray-600';
     }
