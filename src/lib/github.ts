@@ -105,6 +105,15 @@ export async function checkGitHubRepository(owner: string, repo: string): Promis
     }
 
     if (response.status === 403) {
+      // GitHub returns 403 for two very different cases: a private repo *and* an
+      // unauthenticated rate-limit (60 req/hour/IP). Treating both as "private" produced
+      // the misleading "Repository is private" message users hit on shared/corporate IPs.
+      // If the rate limit is exhausted we don't know what the repo is — pass it through
+      // optimistically and let the backend's `git clone` (which does not consume the API
+      // rate limit) be the source of truth.
+      if (await isRateLimited(response)) {
+        return { exists: true, isPublic: true, name: repo };
+      }
       return { exists: true, isPublic: false, name: repo };
     }
 
@@ -122,6 +131,23 @@ export async function checkGitHubRepository(owner: string, repo: string): Promis
   } catch (error) {
     console.error('Error checking GitHub repository:', error);
     throw new Error('Failed to check repository. Please verify the URL and try again.');
+  }
+}
+
+/**
+ * Detects whether a 403 response is a GitHub API rate-limit rather than a permission denial.
+ * The most reliable signal is `X-RateLimit-Remaining: 0`; we also sniff the body message as
+ * a fallback because some proxies strip non-standard headers.
+ */
+async function isRateLimited(response: Response): Promise<boolean> {
+  if (response.headers.get('X-RateLimit-Remaining') === '0') return true;
+  try {
+    const cloned = response.clone();
+    const body = await cloned.json();
+    const message: string = body?.message ?? '';
+    return /rate limit/i.test(message);
+  } catch {
+    return false;
   }
 }
 
