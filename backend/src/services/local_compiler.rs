@@ -167,8 +167,44 @@ impl LocalCompilerService {
 
             // Try to read the compiled WASM file
             let wasm_dir = project_path.join("target/wasm32-unknown-unknown/release");
-            
+
             if wasm_dir.exists() {
+                // Strip the reference-types target feature from every .wasm in the release dir.
+                // Newer rustc/LLVM emits a "reference-types" entry in the wasm target_features
+                // custom section even when `-C target-feature=-reference-types` is set, and the
+                // Stylus on-chain activator rejects programs that advertise reference-types
+                // ("reference-types not enabled: zero byte expected"). wasm-opt rewrites the
+                // module without that feature; --enable-bulk-memory is required because Rust
+                // emits memory.copy / memory.fill which wasm-opt would otherwise refuse to read.
+                let mut wasm_entries = fs::read_dir(&wasm_dir).await?;
+                while let Some(entry) = wasm_entries.next_entry().await? {
+                    let path = entry.path();
+                    if path.extension().and_then(|s| s.to_str()) != Some("wasm") { continue; }
+                    let path_str = path.to_string_lossy().to_string();
+                    let opt_result = Command::new("wasm-opt")
+                        .args(&[
+                            "--enable-bulk-memory",
+                            "--signext-lowering",
+                            "--strip-target-features",
+                            &path_str,
+                            "-o", &path_str,
+                        ])
+                        .output()
+                        .await;
+                    match opt_result {
+                        Ok(out) if out.status.success() => {
+                            log::info!("wasm-opt stripped target-features from {}", path_str);
+                        }
+                        Ok(out) => {
+                            let stderr = String::from_utf8_lossy(&out.stderr);
+                            log::warn!("wasm-opt failed on {} (deploy may fail activation): {}", path_str, stderr.trim());
+                        }
+                        Err(e) => {
+                            log::warn!("Could not invoke wasm-opt on {}: {}", path_str, e);
+                        }
+                    }
+                }
+
                 let mut entries = fs::read_dir(&wasm_dir).await?;
                 while let Some(entry) = entries.next_entry().await? {
                     let path = entry.path();
