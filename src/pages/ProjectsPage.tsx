@@ -12,6 +12,7 @@ import { ProjectList } from '@/components/projects/ProjectList';
 import { TemplateList } from '@/components/projects/TemplateList';
 import { DeploymentList } from '@/components/projects/DeploymentList';
 import { EthClujList } from '@/components/projects/EthClujList';
+import { EthClujBanner } from '@/components/projects/EthClujBanner';
 import { ETHCLUJ_TEMPLATES } from '@/lib/ethcluj-templates';
 import { Template } from '@/lib/templates';
 import { ProjectHeader } from '@/components/projects/ProjectHeader';
@@ -473,6 +474,13 @@ export function ProjectsPage() {
               onSortChange={setSortBy}
             />
           </div>
+
+          {/* EthCluj workshop promo — hidden when already viewing that tab */}
+          {activeSection !== 'ethcluj' && (
+            <div className="flex-none mb-6">
+              <EthClujBanner onOpen={() => setActiveSection('ethcluj')} />
+            </div>
+          )}
 
           {/* Scrollable Content */}
           <div className="flex-1 min-h-0 overflow-y-auto">
