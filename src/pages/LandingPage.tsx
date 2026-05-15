@@ -6,18 +6,20 @@ import { SEO } from "@/components/seo/SEO";
 import { Hero } from "@/components/landing/sections/Hero";
 import { ProblemSolution } from "@/components/landing/sections/ProblemSolution";
 import { HowItWorks } from "@/components/landing/sections/HowItWorks";
+import { StylusSorceryAcademy } from "@/components/landing/sections/StylusSorceryAcademy";
 
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-white" data-theme="light">
       <SEO />
-      
+
       <Header />
 
       <main>
         <Hero />
         <ProblemSolution />
         <HowItWorks />
+        <StylusSorceryAcademy />
       </main>
 
       <Footer />

@@ -1,4 +1,4 @@
-import { Github, Twitter, BookOpen } from 'lucide-react';
+import { Github, Twitter, BookOpen, GraduationCap } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -12,8 +12,17 @@ export function Footer() {
               Wizard © 2025
             </div>
             <div className="hidden md:flex items-center gap-6">
-              <a 
-                href="https://docs.arbitrum.io/stylus" 
+              <a
+                href="https://stylus.academy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <GraduationCap className="h-4 w-4" />
+                Learn with Stylus Sorcery
+              </a>
+              <a
+                href="https://docs.arbitrum.io/stylus"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
@@ -21,8 +30,8 @@ export function Footer() {
                 <BookOpen className="h-4 w-4" />
                 Docs
               </a>
-              <a 
-                href="https://github.com/tolgayayci/wizard" 
+              <a
+                href="https://github.com/tolgayayci/wizard"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
@@ -30,8 +39,8 @@ export function Footer() {
                 <Github className="h-4 w-4" />
                 GitHub
               </a>
-              <a 
-                href="https://x.com/WizardOnStylus" 
+              <a
+                href="https://x.com/WizardOnStylus"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
@@ -49,9 +58,18 @@ export function Footer() {
         </div>
 
         {/* Mobile Links */}
-        <div className="flex md:hidden items-center gap-6 mt-6 pt-6 border-t border-gray-100">
-          <a 
-            href="https://docs.arbitrum.io/stylus" 
+        <div className="flex md:hidden flex-wrap items-center gap-x-6 gap-y-3 mt-6 pt-6 border-t border-gray-100">
+          <a
+            href="https://stylus.academy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <GraduationCap className="h-4 w-4" />
+            Learn
+          </a>
+          <a
+            href="https://docs.arbitrum.io/stylus"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"

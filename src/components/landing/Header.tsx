@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Wand2, ArrowRight, Menu, X, BookOpen, Github } from 'lucide-react';
+import { Wand2, ArrowRight, Menu, X, BookOpen, Github, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/auth/AuthModal';
 
@@ -68,27 +68,41 @@ export function Header() {
             
             {/* Desktop Navigation */}
             <nav className="hidden lg:flex items-center gap-1">
-              <a 
+              <a
+                href="https://stylus.academy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                  isScrolled
+                    ? 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-white/50'
+                }`}
+              >
+                <GraduationCap className="h-4 w-4" />
+                Learn
+              </a>
+
+              <a
                 href="https://docs.arbitrum.io/stylus"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                  isScrolled 
-                    ? 'text-gray-700 hover:text-gray-900 hover:bg-gray-50' 
+                  isScrolled
+                    ? 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
                     : 'text-gray-700 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
                 <BookOpen className="h-4 w-4" />
                 Docs
               </a>
-              
-              <a 
+
+              <a
                 href="https://github.com/tolgayayci/wizard"
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                  isScrolled 
-                    ? 'text-gray-700 hover:text-gray-900 hover:bg-gray-50' 
+                  isScrolled
+                    ? 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
                     : 'text-gray-700 hover:text-gray-900 hover:bg-white/50'
                 }`}
               >
@@ -155,7 +169,17 @@ export function Header() {
 
             {/* Mobile Navigation */}
             <nav className="space-y-1">
-              <a 
+              <a
+                href="https://stylus.academy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 w-full text-left px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg font-medium"
+              >
+                <GraduationCap className="h-4 w-4" />
+                Learn
+              </a>
+
+              <a
                 href="https://docs.arbitrum.io/stylus"
                 target="_blank"
                 rel="noopener noreferrer"
